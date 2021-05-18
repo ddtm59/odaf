@@ -1,0 +1,138 @@
+---
+title: Analyse des dynamiques d'artificialisation du département du Nord
+subtitle: Rapport complet
+author: | 
+  | Direction Départementale des Territoires du Nord
+  | Service Études Planification et Analyses Territoriales
+date: Mars 2021
+header-includes:
+  - \usepackage[french]{babel}
+  - \usepackage{titling}
+  - \pretitle{\begin{center}\LARGE\includegraphics[width=12cm]{logo_pref_ddtm.png}\\[\bigskipamount]}
+  - \posttitle{\end{center}}
+output:
+  word_document:
+    reference_docx: word-styles-reference-01.docx
+    toc: yes
+    toc_depth: 3
+    fig_width: 8
+    fig_height: 4.8
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+    number_sections: true
+    fig_width: 8
+    fig_height: 4.8
+  html_notebook: default
+always_allow_html: yes
+abstract: Résumé à rédiger reprenant les grands ordres de grandeurs, tendances et développements du document. Il faut que ce résumé ne fasse pas plus de un ou deux paragraphes soit 20 lignes.\newpage
+---
+
+\newpage
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      message=FALSE,
+                      warning=FALSE,
+                      fig.align = 'center',
+                      # cache = TRUE,
+                      dpi=200,
+                      fig.width=10)
+
+
+```
+
+```{r lib, echo = FALSE, message=FALSE, warning=FALSE}
+# Chargement des librairies permettant de faire les analyses
+library(tidyverse)
+library(sf)
+library(tmap)
+library(tmaptools)
+library(lubridate)
+library(GGally)
+library(directlabels)
+library(ggrepel)
+library(knitr)
+library(kableExtra)
+library(scales)
+library(pander)
+library(flextable)
+
+#dans le yalm sous output :#html_document:
+  #pdf_document: default
+  #  df_print: paged
+
+```
+```{r import, message=FALSE, warning=FALSE, include=FALSE}
+#' Import des données 
+#' Les données ont été prétraitées par avance via les 2 scripts
+#' Elles se trouvent dans /code/scripts/preparation_donneesnationales.R et (...)_carroyee.R
+
+# données communales
+load(paste0(rprojroot::find_rstudio_root_file(),"/","data/processed_data/fr.RData"))  # référentiel geo
+load(paste0(rprojroot::find_rstudio_root_file(),"/","data/processed_data/referentiel_nat.RData"))              # données de synthèses par communes
+load(paste0(rprojroot::find_rstudio_root_file(),"/","data/processed_data/obs_artif_nat_tidy.RData"))           # données tidy pour toutes les communes
+# données carroyées
+load(paste0(rprojroot::find_rstudio_root_file(),"/","data/processed_data/fr_carroyee.RData"))                  # référentiel geo carroyé
+load(paste0(rprojroot::find_rstudio_root_file(),"/","data/processed_data/referentiel_carr_nat.RData"))         # données de synthèses par carreau
+load(paste0(rprojroot::find_rstudio_root_file(),"/","data/processed_data/obs_artif_nat_carroyee_tidy.RData"))  # données tidy pour tous les carreaux
+tache <- st_read(paste0(rprojroot::find_rstudio_root_file(),"/","data/raw_data/L_TACHE_URBAINE_COMMUNE_S_D59.shp"))
+```
+```{r message=FALSE, warning=FALSE, include=FALSE}
+reformat <- function (.data) {
+  formatC(.data,big.mark = " ",decimal.mark = ",",format ="fg")
+}
+
+tableau <- function (.data){
+  .data %>% qflextable() %>% theme_vanilla() %>% fontsize(part = "all", size = 8) %>% autofit() %>%  colformat_double(big.mark = " ",decimal.mark = ",") %>% colformat_num(big.mark = " ", decimal.mark = ",",digits = 0,na_str = "na")
+}
+```
+
+
+```{r child = here::here("code","exploration","01_analyse_departement.Rmd") }
+
+```
+
+\newpage
+
+```{r child = here::here("code","exploration","03_scot_avesnes.Rmd") }
+
+```
+
+\newpage
+
+```{r child = here::here("code","exploration","02_scot_cambrai.Rmd") }
+
+```
+
+\newpage
+
+```{r child = here::here("code","exploration","04_scot_valenciennes.Rmd") }
+
+```
+
+\newpage
+
+```{r child = here::here("code","exploration","05_scot_douai.Rmd") }
+
+```
+
+\newpage
+
+```{r child = here::here("code","exploration","07_scot_lille.Rmd") }
+
+```
+
+\newpage
+
+```{r child = here::here("code","exploration","05_scot_flandre_interieure.Rmd") }
+
+```
+
+\newpage
+
+```{r child = here::here("code","exploration","06_scot_flandre_dunkerque.Rmd") }
+
+```

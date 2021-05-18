@@ -1,0 +1,2436 @@
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+##############################################################################################################
+#                               CREATION DES DONNEES UTILISEES DANS LES ANALYSES                             #
+##############################################################################################################
+
+#' Création des variables modifiables permettant de regénérer les analyses pour les autres SCoT ##############
+liste_scot <- fr %>% as_tibble() %>% select(-geometry) %>% distinct(lib_scot)
+choix_scot <- "SCoT du Cambrésis"
+choix_dept <- "59"
+
+# restriction du perimetre des 2 SF au département choisi) choix_dept=59
+frdept <- fr %>% filter(IDDEP==choix_dept)
+frdept_carr <- fr_carr %>% filter(IDDEP==choix_dept)
+
+# création des jointures data et data2 avec le SF restreint ##################################################
+# en version avec le SF pour avoir des cartos
+dcomdept_sf <- left_join(frdept, data_nat, by=c("IDCOM"="idcom"))
+d2comdept_sf<- left_join(frdept, data2_nat, by=c("IDCOM"="idcom"))
+# et en version tibble sans geometry pour aller plus vite dans les calculs et
+# ne pas avoir à supprimer la geometry dans les manipulations
+dcomdept_ti <- dcomdept_sf %>% as_tibble() %>% select(-geometry)
+d2comdept_ti <- d2comdept_sf %>% as_tibble() %>% select(-geometry)
+
+# création des jointures données de synthèses  et référentiels avec le SF restreint ##########################
+# en version avec le SF pour avoir des cartos
+dcomdept_ref_sf <- frdept %>% left_join(referentiel_nat, by=c("IDCOM"="idcom"))
+# et en version tibble sans geometry pour aller plus vite dans les calculs et
+# ne pas avoir à supprimer la geometry dans les manipulations
+dcomdept_ref_ti <- dcomdept_ref_sf %>% as_tibble() %>% select(-geometry)
+
+# 
+# # La même chose mais avec les données arroyées ---- ###############################################################
+# dcarrdept_sf  <- left_join(frdept_carr,data_carr_nat,by=c("idcarreau"="idcarreau"))
+# d2carrdept_sf <- left_join(frdept_carr,data2_carr_nat,by=c("idcarreau"="idcarreau"))
+# dcarrdept_ti <- dcarrdept_sf %>% as_tibble() %>% select(-geometry)
+# d2carrdept_ti <- d2carrdept_sf %>% as_tibble() %>% select(-geometry)
+# dcarrdept_ref_sf <- left_join(frdept_carr,referentiel_carr_nat,by=c("idcarreau"="idcarreau"))
+# dcarrdept_ref_ti <- dcarrdept_ref_sf %>% as_tibble() %>% select(-geometry)
+
+#suppression des données initiales pour plus de lisibilité####################################################
+# rm(data_carr_nat,data_nat,data2_carr_nat,data2_nat,fr,fr_carr,referentiel_carr_nat,referentiel_nat)
+
+# Création des données pour un scot en particulier
+# Création des données filtrées
+dcomdept_ref_sf_scot <- dcomdept_ref_sf %>% filter(lib_scot==choix_scot)
+dcomdept_sf_scot <- dcomdept_sf  %>% filter(lib_scot==choix_scot)
+d2comdept_sf_scot <- d2comdept_sf %>% filter(lib_scot==choix_scot)
+# dcarrdept_sf_scot <- dcarrdept_sf %>% filter(lib_scot==choix_scot)
+# d2carrdept_sf_scot <- d2carrdept_sf %>% filter(lib_scot==choix_scot)
+# dcarrdept_ref_sf_scot <- dcarrdept_ref_sf %>% filter(lib_scot==choix_scot)
+
+# les versions tibbles
+dcomdept_ref_ti_scot <- dcomdept_ref_sf_scot %>% as_tibble() %>% select(-geometry)
+dcomdept_ti_scot <- dcomdept_sf_scot %>% as_tibble() %>% select(-geometry)
+d2comdept_ti_scot <- d2comdept_sf_scot %>% as_tibble() %>% select(-geometry)
+# dcarrdept_ti_scot <- dcarrdept_sf_scot %>% as_tibble() %>% select(-geometry)
+# d2carrdept_ti_scot <- d2carrdept_sf_scot %>% as_tibble() %>% select(-geometry)
+# dcarrdept_ref_ti_scot <- dcarrdept_ref_sf_scot %>% as_tibble() %>% select(-geometry)
+
+# création des données d'efficacité d'artifcialisation
+# maille epci
+efficacite_artif_epci <- dcomdept_ref_ti_scot %>% 
+  group_by(EPCI20TXT) %>%
+  summarise(hamenhab = sum(arthab1217/10000, na.rm = TRUE)/sum(men1217, na.rm = TRUE),
+            haempact = sum(artact1217/10000, na.rm = TRUE)/sum(emp1217, na.rm = TRUE),
+            menhahab = sum(men1217, na.rm = TRUE)/sum(arthab1217/10000, na.rm = TRUE),
+            emphaact = sum(emp1217, na.rm = TRUE)/sum(artact1217/10000, na.rm = TRUE),
+            pop=sum(pop17,na.rm=T),
+            men=sum(men17,na.rm=T),
+            emp=sum(emp17,na.rm=T)) %>% 
+  arrange(desc(menhahab)) %>% mutate(r_men=row_number()) %>% 
+  arrange(desc(emphaact)) %>% mutate(r_emp=row_number())
+
+# maille aav
+efficacite_artif_AAV <- dcomdept_ref_ti_scot %>% 
+  group_by(LIBAAV2020) %>%
+  summarise(hamenhab = sum(arthab1217/10000, na.rm = TRUE)/sum(men1217, na.rm = TRUE),
+            haempact = sum(artact1217/10000, na.rm = TRUE)/sum(emp1217, na.rm = TRUE),
+            menhahab = sum(men1217, na.rm = TRUE)/sum(arthab1217/10000, na.rm = TRUE),
+            emphaact = sum(emp1217, na.rm = TRUE)/sum(artact1217/10000, na.rm = TRUE),
+            pop=sum(pop17,na.rm=T),
+            men=sum(men17,na.rm=T),
+            emp=sum(emp17,na.rm=T)) %>% 
+  arrange(desc(menhahab)) %>% mutate(r_men=row_number()) %>% 
+  arrange(desc(emphaact)) %>% mutate(r_emp=row_number())
+
+# maille aav mais avec distinction en fonction du type de communes
+efficacite_artif_AAV_cat <- dcomdept_ref_ti_scot %>% 
+  group_by(LIBAAV2020, LIB_CATEAAV2020) %>%
+  summarise(hamenhab = sum(arthab1217/10000, na.rm = TRUE)/sum(men1217, na.rm = TRUE),
+            haempact = sum(artact1217/10000, na.rm = TRUE)/sum(emp1217, na.rm = TRUE),
+            menhahab = sum(men1217, na.rm = TRUE)/sum(arthab1217/10000, na.rm = TRUE),
+            emphaact = sum(emp1217, na.rm = TRUE)/sum(artact1217/10000, na.rm = TRUE),
+            pop=sum(pop17,na.rm=T),
+            men=sum(men17,na.rm=T),
+            emp=sum(emp17,na.rm=T)) %>% 
+  arrange(desc(menhahab)) %>% mutate(r_men=row_number()) %>% 
+  arrange(desc(emphaact)) %>% mutate(r_emp=row_number())
+
+# maille communale mais en incluant les epci pour pouvoir quand même faire la distinction avec les couleurs par exemple
+efficacite_artif_com <- dcomdept_ref_ti_scot %>% 
+  group_by(EPCI20TXT ,IDCOMTXT,LIB_CATEAAV2020) %>%
+  summarise(hamenhab = sum(arthab1217/10000, na.rm = TRUE)/sum(men1217, na.rm = TRUE),
+            haempact = sum(artact1217/10000, na.rm = TRUE)/sum(emp1217, na.rm = TRUE),
+            menhahab = sum(men1217, na.rm = TRUE)/sum(arthab1217/10000, na.rm = TRUE),
+            emphaact = sum(emp1217, na.rm = TRUE)/sum(artact1217/10000, na.rm = TRUE),
+            pop=sum(pop17,na.rm=T),
+            men=sum(men17,na.rm=T),
+            emp=sum(emp17,na.rm=T)) %>% 
+  arrange(desc(menhahab)) %>% mutate(r_men=row_number()) %>% 
+  arrange(desc(emphaact)) %>% mutate(r_emp=row_number())
+
+# Création des données fusionnées pour la France entière
+dcom_ref_sf <- fr %>% left_join(referentiel_nat, by=c("IDCOM"="idcom"))
+dcom_ref_ti <- dcom_ref_sf %>% as_tibble() %>% select(-geometry)
+dcom_sf <- fr %>% left_join(data2_nat,by=c("IDCOM"="idcom"))
+dcom_ti <- dcom_sf %>% as_tibble() %>% select(-geometry)
+
+
+efficacite_artif_scot_etendue <- dcomdept_ref_sf %>% 
+  group_by(lib_scot) %>%
+  summarise(hamenhab = sum(arthab1217/10000, na.rm = TRUE)/sum(men1217, na.rm = TRUE),
+            haempact = sum(artact1217/10000, na.rm = TRUE)/sum(emp1217, na.rm = TRUE),
+            menhahab = sum(men1217, na.rm = TRUE)/sum(arthab1217/10000, na.rm = TRUE),
+            emphaact = sum(emp1217, na.rm = TRUE)/sum(artact1217/10000, na.rm = TRUE),
+            men1217 = sum(men1217, na.rm = TRUE),
+            emp1217 = sum(emp1217, na.rm = TRUE),
+            pop=sum(pop17,na.rm=T),
+            men=sum(men17,na.rm=T),
+            emp=sum(emp17,na.rm=T),
+            nafart1217=sum(nafart1217/10000, na.rm=T),
+            arthab1217=sum(arthab1217/10000, na.rm = TRUE),
+            artact1217 = sum(artact1217/10000, na.rm = TRUE))
+
+efficacite_artif <- dcomdept_ref_ti %>% 
+  group_by(lib_scot) %>%
+  summarise(hamenhab = sum(arthab1217/10000, na.rm = TRUE)/sum(men1217, na.rm = TRUE),
+            haempact = sum(artact1217/10000, na.rm = TRUE)/sum(emp1217, na.rm = TRUE),
+            menhahab = sum(men1217, na.rm = TRUE)/sum(arthab1217/10000, na.rm = TRUE),
+            emphaact = sum(emp1217, na.rm = TRUE)/sum(artact1217/10000, na.rm = TRUE),
+            pop=sum(pop17,na.rm=T),
+            men=sum(men17,na.rm=T),
+            emp=sum(emp17,na.rm=T)) %>% 
+  arrange(desc(menhahab)) %>% mutate(r_men=row_number()) %>% 
+  arrange(desc(emphaact)) %>% mutate(r_emp=row_number())
+
+```
+```{r eval=FALSE, include=FALSE}
+# knitr::include_graphics('logo_ddtm.jpg')
+```
+
+
+# Avant-propos
+
+On caractérise l'artificialisation des sols comme la "transformation d'un sol à caractère agricole, naturel ou forestier par des actions d'aménagement, pouvant entraîner son imperméabilisation totale ou partielle. Ce changement d'usage des sols, le plus souvent irréversible, a des conséquences qui peuvent être préjudiciables à l'environnement et à la production agricole.
+
+L’artificialisation résulte de l’urbanisation et de l’expansion des infrastructures, sous l’influence de la dynamique démographique et du développement économique. Les surfaces artificialisées regroupent l’habitat et les espaces verts associés, les zones industrielles et commerciales, les équipements sportifs ou de loisirs, les réseaux de transport, les parkings ou encore les mines, décharges et chantiers.  
+
+L'artificialisation des sols, et notamment leur imperméabilisation, amplifie le ruissellement de l'eau au détriment de son infiltration, et participe ainsi à l'érosion des sols, est à l’origine de coulées d'eau boueuse et accentue le risque d'inondation. Le ruissellement contribue également à la dégradation de la qualité chimique et écologique des eaux en intensifiant le transfert de sédiments chargés de contaminants des sols vers les cours d'eau (engrais azotés ou phosphatés, hydrocarbures, métaux lourds, produits phytosanitaires).
+
+L'artificialisation des sols peut aussi provoquer un déstockage de carbone rapide et conséquent, qui contribue au changement climatique lorsque le sol n'est pas très vite couvert (végétation, revêtement). Enfin, elle affecte la biodiversité en fragmentant les habitats naturels et en transformant irrémédiablement les écosystèmes et les paysages."
+
+L’étalement de l’urbanisation, lié au développement de zones pavillonnaires et à l’implantation de zones d’activités et de surfaces commerciales à la périphérie des métropoles et des agglomérations, emporte des contraintes économiques, sociales et environnementales pour les collectivités et l’ensemble de la population.
+
+Cette artificialisation engendre partout des externalités négatives en matière de perte de biodiversité, de productivité agricole, de capacité de résilience face au risque d’inondation, au changement climatique et à la précarité énergétique, une banalisation des paysages et en conséquence une perte d’attractivité, y compris économique, des territoires.
+
+Ce phénomène s’accompagne également d’une augmentation des besoins en services de transports et de réseaux coûteux en investissement comme en exploitation. L’éloignement des centres-villes renchérit le coût de la mobilité pour les ménages et réduit l’accessibilité aux services publics.
+
+En parallèle, l’étalement urbain peut s’accompagner d’une paupérisation des centres-villes, de davantage de logements vacants, voire d’une dégradation du patrimoine bâti, et, en conséquence, de l’attractivité des territoires. La gestion économe de l’espace doit s’envisager comme un objectif de convergence et de cohérence de nos politiques publiques en matière d’énergie, de climat, d’écologie, d’urbanisme, de cohésion et d’agriculture, et non comme une politique sectorielle supplémentaire.
+
+\newpage
+
+# Objectifs du document
+
+## L'observatoire national
+
+Dans le cadre de l'action 7 du Plan National Biodiversité, qui vise à atteindre le "Zéro Artificialisation Nette" (ZAN), il est prévu qu'un état des lieux annuel de la consommation d’espaces et les données associées soient mises à la disposition des territoires et des citoyens.
+Ces données, ainsi que de nombreux éclairages réalisés par le CEREMA sont disponibles depuis 2019 sur le site [https://artificialisation.biodiversitetousvivants.fr](https://artificialisation.biodiversitetousvivants.fr).
+
+Un rapport annuel du CEREMA [^1] détaille et met en avant plusieurs éléments permettant de mieux comprendre ce phénomène pour mieux le limiter. *Il vient en complément d’analyses réalisées les années précédentes, mais basées sur des données et méthodes différentes.*
+
+[^1]: _CEREMA, Rapport sur les déterminants de l'artificialisation, 2020_
+
+Ce rapport poursuit deux objectifs :
+
+- Analyser les grandes tendances de l’artificialisation, ainsi que les éléments de contexte permettant de mieux comprendre l’artificialisation pour mieux la limiter. Ces éléments sont réunis dans la synthèse.
+- Présenter des méthodes et indicateurs permettant aux acteurs d’analyser leur territoire à une maille locale. Ces indicateurs sont présentés dans le rapport détaillé
+
+Les points clés du rapport :
+
+> - Après une diminution importante sur la période 2009-2015, l’artificialisation augmente à nouveau sur les deux dernières années
+> - L’artificialisation est majoritairement destinée à l’habitat (68%).
+> - L’artificialisation se localise principalement dans les métropoles et sur le littoral.
+> - Le phénomène est très concentré : 5% des communes sont responsables de 39,1% de la consommation d’espaces. Il faut toutefois rappeler que quasiment toutes les communes ont un flux d’artificialisation positif : tous les territoires sont concernés par la problématique.
+> - Il est important d’analyser l’efficacité de l’artificialisation, à savoir ce que l’on obtient (m² construits, ménages, population et emplois accueillis) pour 1 ha artificialisé. Cette efficacité augmente de manière modérée à l’échelle nationale. Cependant, cette évolution est très variable selon les territoires.
+> - Les principaux leviers pour limiter l’artificialisation sont l’augmentation du taux de renouvellement urbain et l’augmentation de la densité. Cependant, le potentiel d’augmentation doit être analysé territoire par territoire. En particulier, l’augmentation de la densité doit être accompagnée, notamment pour préserver (et renforcer) la qualité de vie locale.
+>
+>
+> `r tufte::quote_footer("CEREMA, Rapport sur les déterminants de l'artificialisation")`
+
+## Une observation locale pour une analyse plus détaillée des dynamiques d'artificialisation
+
+Ces données et analyses de grandes valeurs ajoutées sont contraintes par l'échelle nationale de la démarche. Bien que la maille d'analyse du rapport soit particulièrement fine (les cartes et analyses vont jusqu'à l'échelle communale), la présence indispensable de ce document ne peut être suffisante à une analyse complète de la situation à une échelle locale.
+
+Le présent document reprend les données nationales, en les analysant avec le prisme du département du Nord. 
+La dynamique départementale est comparée aux autres départements. Les données sont ainsi passées au crible des périmètres principaux du département. Des analyses statistiques complémentaires au document national et centrées sur le Nord permettent de mieux comprendre sa dynamique.
+
+
+
+# Méthodologie
+
+## Les données de réferences
+
+Les données utilisées sont de sources différentes mais cohérentes entre elles : 
+
+- Artificialisation : CEREMA, extraction des données sans aucune modification. Seule une mise en forme des données pour les rendre exploitables d'un point de vue statistique a été opérée ;
+- Emplois et Ménages : INSEE, extraction des données sources du CEREMA ;
+- Maillage territorial : INSEE, issu des référentiels officiels de l'INSEE pour l'année 2020 ;
+- Contours géographiques : IGN, basée sur la maille communale 2020 ;
+- Superficie déjà artificielle : Corine Land Cover 2018.
+
+Les dates concernant les données d'artificialisation disponibles portent à confusion dans leur intitulé. En effet, elles sont systématiquement nommées avec deux années. La description des données lève toutefois cette ambiguïté en précisant qu'il s'agit des données sur la période 2009-2019, c’est-à-dire entre le 1^er^ janvier 2009 et le 1^er^ janvier 2019.
+Le présent rapport tente autant que possible de ne pas être ambigu sur ce point, c'est pourquoi seules les années révolues sont indiquées. *À titre d'exemple, un graphique indiquant surface cumulée artificialisée entre 2009 et 2018 comprend toutes les années, de 2009 et l'année 2018 inclue.*
+
+## Destinations
+
+L'artificialisation peut être ventilée selon la destination des parcelles artificialisées en 4 catégories :
+
+- Habitat;
+- Activité;
+- Mixte;
+- Inconnu.
+
+Dans les faits, seules les deux premières destinations seront analysées dans ce rapport.
+
+Toutefois, afin de ne pas introduire de biais méthodologique dans les analyses, l'artificialisation totale sera systématiquement analyse en première approche.
+
+## Limites de la donnée
+
+Le CEREMA a réalisé un document détaillant l'ensemble de la méthodologie permettant d'obtenir ces données [^2]. [Mesure de l’artificialisation à l’aide des Fichiers fonciers, 2019](https://artificialisation.biodiversitetousvivants.fr/sites/artificialisation/files/inline-files/definition%20artificialisation%20FF%20V3.pdf). *Ce chapitre reprend le passage sur les limites de ces données.*
+
+[^2]: *CEREMA, Mesure de l’artificialisation à l’aide des Fichiers fonciers, 2019*
+
+
+### Définitions
+
+Il se sera pas fait ici de présentation exhaustive de la méthode de constitution des données nationales de consommation d’espaces, ni des limites de ceux-ci. On peut rappeler les éléments suivants issus des rapports.
+
+On nomme «ENAF» les espaces à usage naturel, agricole ou forestier. A l’inverse,est nommé «artificialisé» tout espace ni naturel, ni agricole, ni forestier. Cette définition s’appuie notamment sur les travaux d’une expertise collective menée par l’INRA et l’IFSTTAR.
+
+Dans le rapport, nous utiliserons de manière synonyme les termes «d’artificialisation» et de «consommation d’espaces». Ces deux termes s’entendent comme le fait de transformer un espace NAF en un espace artificialisé. Il faut toutefois noter que dans le cadre des chantiers liés au «ZAN» et de l’évolution des réflexions et outils de mesure, ces définitions pourraient à terme évoluer.
+
+### Les limites
+
+Les Fichiers fonciers constituent une source reconnue permettant d’étudier la consommation des espaces. Il faut cependant noter certaines précautions d’usage.
+
+#### Le non-cadastré
+
+
+En particulier, les Fichiers fonciers ne traitent que les parcelles cadastrées: il n’y a donc pas de données sur le domaine non cadastré.En particulier, ne sont pas cadastrés :
+
+- les «voies publiques: rues, places publiques, routes nationales et départementales, voies communales et chemins ruraux;
+- les eaux: cours d’eaux qu’ils soient domaniaux, non domaniaux ou mixtes;
+- les rivages de la mer;
+- les lacs s’ils appartiennent au domaine public;
+- les canaux de navigation de l’État non concédés.
+
+Essentiellement, ce sont les routes et les cours d’eau qui ne sont pas représentés.
+Les surfaces non cadastrées représentent environ 4% du territoire de France métropolitaine.
+
+Cependant, en pratique, certains espaces théoriquement dans le domaine public, y compris de grande ampleur (périphériques, routes nationales, certaines autoroutes,etc.) sont encore cadastrés.
+
+Les chiffres produits reprennent ainsi l’artificialisation qui a lieu sur l’espace cadastré: l’artificialisation de l’espace non-cadastré (cependant minime) n’est pas observée.
+
+En pratique, toutefois, l’artificialisation se produit avant: une route est artificialisée, puis l’année suivante est reversée dans le non cadastré. Il existe cependant des cas où ce reversement a lieu trop vite pour pouvoir l’observer.
+
+#### Les bâtiments publics
+
+
+Les bâtiments appartenant à un organisme public (communes, intercommunalités...) sont exonérés de taxe foncière. L’étude des cas a cependant montré qu’une partie des bâtiments n’était ainsi pas présente dans la base. Les chiffres produits ne prennent donc en compte qu’une partie de l’artificialisation due aux propriétés publiques.
+
+#### Les terrains militaires
+
+
+Les terrains militaires ont un classement qui peut être instable: certains camps peuvent ainsi changer d’occupation fiscale d’une année à l’autre, sans changement d’usage physique du sol. Dans ce cadre, et au vu des surfaces importantes, il est souhaitable de les traiter à part afin d’éviter que ces changements impromptus ne faussent les résultats.
+
+#### Les golfs
+
+
+Les golfs ont subi une modification fiscale en 2015, qui clarifie leur classement cadastral pour le passer en «artificialisé». Dans les données brutes, on assiste ainsi à une très importante artificialisation entre 2014 et 2015, uniquement due à ce changement fiscal. Dans ce contexte, il est donc nécessaire de traiter à part les golfs pour éviter de fausser les résultats. Les golfs ne seront donc, dans ce contexte, pas considérés comme de l’artificialisation.
+
+#### Les erreurs de données
+
+
+Certaines parcelles ont leur somme des "suf" différentes de la surface totale de la parcelle. En d’autres termes, la somme des parties est différente de l’enveloppe. Il est donc nécessaire de traiter ces cas particuliers.
+
+## Le traitement de ces données
+
+Les données fournies ont été retraitées pour être utilisables plus aisément d'un point de vue statistique - *Elles ont été transposées au format "tidy"*. 
+
+## La mise à disposition des fichiers
+
+Les données et les scripts ayant permis ce redressement sont disponibles sur [la page Github de l'observatoire](https://github.com/ddtm59/odaf). 
+
+Par ailleurs, les fichiers d'analyse et de data-visualisation sont également disponibles sur cette page. La démarche d'analyse a été menée sur le département du Nord, mais les données ayant été retravaillées pour l'ensemble de la France hexagonale, cette étude peut donc être reproductible sur le territoire désiré.
+
+\newpage
+
+# L'artificialisation du département du Nord au regard des autres départements
+
+## Le Nord : le département le plus artificialisé de France
+
+
+La première donnée présentée de ce rapport met en avant l'état des lieux des terres déjà artificielles du territoire. Le graphique ci-après illustre les surfaces déjà artificielles pour les départements les plus artificialisés de France. 
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+dcom_ref_ti %>% group_by(IDREGTXT, IDDEPTXT) %>% 
+  summarise(deja_artif = round(sum(partart18/10000000,na.rm=T),digits = 0)) %>% 
+  arrange(desc(deja_artif)) %>% 
+  ungroup() %>% 
+  top_n(n = 20) %>% 
+   ggplot()+
+  aes(x = fct_reorder(IDDEPTXT,deja_artif,sum), y=deja_artif, fill = IDREGTXT)+
+  geom_col()+
+  labs(x = "",
+      y = "en milliers d'Ha artificialisés",
+      title = "Surface artificielle en 2018",
+      subtitle = "pour les 20 départements les plus artificiels de France",
+      caption = "Source : CEREMA, Traitement : DDTM 59",
+      fill = "")+
+ coord_flip() +
+ geom_text(aes(label = round(deja_artif,digits = 0)), vjust=0.5, hjust = 1.5, size=3, color="white") +
+ theme_minimal()+
+ theme(legend.position = "none")+
+      scale_y_continuous(labels = function(x) format(x, big.mark = " ", scientific = FALSE))
+```
+
+Avec plus de **100 000 Ha de surface artificielle** en 2018, le département du Nord est le territoire où les surfaces artificielles sont les plus vastes en valeur absolue.
+
+Cette première place peut être relativisée en prenant en considération la part relative des espaces artificialisés au regard de la surface du département. Dans ce cas de figure, **le département du Nord reste toutefois le premier département hors Île-de-France** en terme de part artificialisée, avec 18% de sa superficie [^4].
+
+[^4]: *La valeur relative et absolue des espaces artificialisés est calculée à partir des données Corine Land Cover à la différence du reste du document qui s'appuie sur les données "Observatoire de l'artificialisation". Les bases de données locales telles que OCS2D 2015 estiment cette part aux alentours de 20%. Toutefois, puisqu'il n'existe pas encore à ce jour de base nationale plus fine, on pourra retenir les valeurs indiquées dans ces deux graphiques.*
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+dcom_ref_ti %>% group_by(IDREGTXT, IDDEPTXT) %>% 
+  summarise(deja_artif = round(100*sum(partart18,na.rm=T)/sum(surfcom20,na.rm = T),digits = 2)) %>% 
+  arrange(desc(deja_artif)) %>% 
+  ungroup() %>% 
+  top_n(n = 20) %>% 
+   ggplot()+
+  aes(x = fct_reorder(IDDEPTXT,deja_artif,sum), y=deja_artif, fill = IDREGTXT)+
+  geom_col()+
+  labs(x = "",
+      y = "% de la surface du département",
+      title = "Part de la surface artificielle du département en 2018",
+      subtitle = "pour les 20 départements les plus artificiels de France",
+      caption = "Source : CEREMA, Traitement : DDTM 59",
+      fill = "")+
+ coord_flip() +
+ geom_text(aes(label = round(deja_artif,digits = 0)), vjust=0.5, hjust = 1.5, size=3, color="white") +
+ theme_minimal()+
+ theme(legend.position = "none")
+
+```
+
+
+
+## Le Nord : 11^ème^ département en matière d'artificialisation
+
+```{r include=FALSE}
+art_nat <- dcom_ti %>%
+    summarise(artif = round(sum(valeur/10000,na.rm=T),digits = 0)) %>% 
+    pull(artif)
+
+art_59 <- dcom_ti %>%
+    group_by(IDDEPTXT) %>% 
+    summarise(artif = round(sum(valeur/10000,na.rm=T),digits = 0)) %>% 
+    arrange(desc(artif)) %>% 
+    ungroup() %>% filter(IDDEPTXT=="Nord") %>% pull(artif)
+
+
+
+```
+
+Ce fort ratio d'espace déjà artificialisé pourrait laissé penser que la dynamique d'artificialisation est mécaniquement moins forte, comme c'est le cas pour les départements de région parisienne. 
+
+Le graphique ci-dessous présente le classement des départements de France ayant le plus artificialisé sur la période 2009-2018 (inclue).
+
+On peut noter que le Nord se classe à la 11^ème^ place en matière de dynamique d'artificialisation absolue avec plus de **5 000 Ha artificialisés sur la période 2009-2018, soit 10 années.** Soit `r round((art_59/art_nat)*100,,digits=0) `% de la surface totale artificialisée au niveau national.
+
+Cette artificialisation peut être ventilée en deux grandes catégories en fonction de la destination finale des surfaces artificialisées [^3] : 
+
+- Les surfaces liées à l'activité économique,
+- Les surfaces liées à l'habitat.
+
+[^3]: Les destinations "mixte" et "inconnue" ne sont pas pris en compte lors de l'analyse par destination. Elles le sont lorsque la valeur totale de l'artificialisation est indiquée.
+  
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+#artdept_abs <- 
+  dcom_ti %>%
+  group_by(IDDEPTXT) %>% 
+  summarise(artif = round(sum(valeur/10000,na.rm=T),digits = 0)) %>% 
+  arrange(desc(artif)) %>% 
+  ungroup() %>% 
+  top_n(n = 20) %>% 
+  left_join(dcom_ti,by=c("IDDEPTXT")) %>% 
+  group_by(IDDEPTXT,destination) %>% 
+  filter(destination %in% c("Activité","Habitat")) %>% 
+  summarise(artif_typ = round(sum(valeur/10000,na.rm=T),digits = 0)) %>% 
+   ggplot()+
+  aes(x = fct_reorder(IDDEPTXT,artif_typ,sum), y=artif_typ, fill = destination)+
+  geom_col()+
+  labs(x = "",
+      y = "Ha artificialisés",
+      title = "Artificialisation entre 2009 et 2018",
+      subtitle = "pour les 20 départements les plus consommateurs de foncier",
+      caption = "Source : CEREMA, Traitement : DDTM 59",
+      fill = "")+
+  coord_flip() +
+  geom_text(aes(label = round(artif_typ,digits = 0)),position = position_stack(.5), vjust=0.5, size=3, color="white") +
+  theme_minimal()+
+  guides(fill = guide_legend(title = "Destination"))+
+  theme(legend.position = "right")+
+      scale_y_continuous(labels = function(x) format(x, big.mark = " ", scientific = FALSE))
+
+```
+
+
+Le graphique ci-après reprend les données précédentes en analysant seulement les rapports de forces entre ces deux grandes destinations de l'artificialisation.
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+
+#art_dept_rel <- 
+dcom_ti %>%
+  group_by(IDDEPTXT) %>% 
+  summarise(artif = round(sum(valeur/10000,na.rm=T),digits = 0)) %>% 
+  arrange(desc(artif)) %>% 
+  ungroup() %>% 
+  top_n(n = 20) %>% 
+  left_join(dcom_ti,by=c("IDDEPTXT")) %>% 
+  group_by(IDDEPTXT,destination) %>% 
+  filter(destination %in% c("Activité","Habitat")) %>% 
+  summarise(artif_typ = round(sum(valeur/10000,na.rm=T),digits = 0)) %>% 
+  ggplot()+
+  aes(x = fct_reorder(IDDEPTXT,artif_typ,sum),
+      fill = destination, 
+      weight = artif_typ,
+      label=percent(after_stat(prop), accuracy = 1)) +
+    geom_bar(position = "fill") +
+    geom_text(aes(by = as.factor(IDDEPTXT)),
+              stat="prop",
+              position = position_fill(.5),
+              size=3,
+              color="white")+ 
+    scale_fill_hue() +
+    coord_flip() +
+    theme_minimal()+
+   labs(x = "",
+       y = "% de l'artificialisation",
+       title = "Artificialisation entre 2009 et 2018",
+       subtitle = "pour les 20 départements les plus consommateurs de foncier",
+       caption = "Source : CEREMA, Traitement : DDTM 59",
+       fill = "")+
+  scale_y_continuous(labels = scales::percent)
+
+
+
+#gridExtra::grid.arrange(artdept_abs,art_dept_rel,ncol =2)
+
+```
+
+Comme indiqué dans le rapport national, **le Nord se caractérise par une part de l'artificialisation liée à l'activité plus importante qu'au niveau national** (34% pour le Nord contre 26% pour la France). Cette caractéristique est partagée avec la moitié des départements se trouvant dans le haut du classement tels que la Vendée, les Bouches-du-Rhône, les Landes, etc. On note que le département voisin du Pas-de-Calais a connu la même dynamique que le Nord.
+
+
+### Artificialisation au regard de la surface du département
+
+L'artificialisation absolue donne une première idée de la dynamique passée sur le territoire. Toutefois, celle-ci peut être nuancée au regard de la surface du département. On comprend aisément qu'une approche en densité permet de relativiser les situations au regard des surfaces en jeux.
+
+Le graphique suivant reprend donc l'analyse en classant les départements en fonction du ratio entre les surfaces artificialisées et les surfaces des départements.
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# artificialisation par rapport à la surface départementale
+dcom_ref_ti %>%
+  group_by(IDDEPTXT) %>%
+  summarise(v = 100 * sum(nafart0919, na.rm = T) / sum(surfcom20, na.rm = T)) %>%
+  mutate(r = rank(-v)) %>%
+  filter(r <= 11) %>%
+  ggplot() +
+  aes(x = fct_reorder(IDDEPTXT, v, median), y = v) +
+  geom_col() +
+  geom_text(
+    aes(label = round(v, digits = 1)),
+    position = position_stack(0.95),
+    vjust = 0.5,
+    size = 3,
+    color = "white"
+  ) +
+  coord_flip() +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs(
+    x = "",
+    y = "% de la surface du département",
+    title = "Artificialisation entre 2009 et 2018",
+    subtitle = "par rapport à la surface du département",
+    caption = "Source : CEREMA, Traitement : DDTM 59",
+    fill = ""
+  ) +
+  scale_y_continuous(
+    labels = function(x)
+      format(
+        x,
+        big.mark = " ",
+        scientific = FALSE,
+        decimal.mark = ","
+      )
+  )
+
+```
+
+Dans ce cas d'espèce, le département remonte dans le classement en se situant à la 4^ème^ place. En effet, __près de 1% de la surface totale du département a été artificialisée durant la décennie. __
+
+
+### Artificialisation au regard du nombre d'habitants
+
+De la même manière que la comparaison précédente, on peut également pondérée cette artificialisation au regard du nombre d'habitants.
+
+Le graphique suivant reprendre donc le classement des départements ayant le plus artificialisé en représentant le ratio entre la surface artificialisée et le nombre d'habitants du territoire.
+
+_Attention, le premier graphique garde volontairement l'ordre de classement des départements ayant le plus artificialisé._
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# artificialisation par rapport au nb d'habitants
+
+
+# artificialisation par rapport au nb d'habitants
+dcom_ref_ti %>%
+  group_by(IDDEPTXT) %>%
+  summarise(artif=sum(nafart0919,na.rm=T)) %>%
+  mutate(r=rank(-artif)) %>%
+  filter(r<=15) %>%
+  left_join(dcom_ref_ti,by=c("IDDEPTXT")) %>%
+  group_by(IDDEPTXT,r) %>%
+  summarise(v = sum(nafart0919, na.rm = T) / sum(pop17, na.rm = T),
+            artif = sum(nafart0919, na.rm = T)) %>%
+  ggplot() +
+  aes(x = fct_reorder(paste0(r, " - ",IDDEPTXT), artif, sum), y = v) +
+  geom_col() +
+  geom_text(
+    aes(label = round(v, digits = 0)),
+    #position = position_stack(0.95),
+    vjust = 0.5,
+    hjust = 1.2,
+    size = 3,
+    color = "white"
+  ) +
+  coord_flip() +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs(
+    x = "",
+    y = "m² par habitant",
+    title = "Artificialisation entre 2009 et 2018",
+    subtitle = "par rapport à la population des départements ayant le plus artificialisé",
+    caption = "Source : CEREMA, Traitement : DDTM 59",
+    fill = ""
+  )
+```
+
+
+Dans ce cas, on note que le Nord - tout comme les Bouches-du-Rhône - a un ratio de surface artificialisée par habitant très faible. En tant que département le plus peuplé de France, le Nord a par construction beaucoup plus de chances d'obtenir un taux d'artificialisation par habitants faible. Il s'agit en réalité d'une des plus faibles hors Île-de-France comme l'indique le diagramme suivant. Il est de l'ordre de 2m² par habitant par an.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+dcom_ref_ti %>%
+  # group_by(IDDEPTXT) %>%
+  # summarise(artif=sum(nafart0919,na.rm=T)) %>%
+  # mutate(r=rank(-artif)) %>%
+  # filter(r<=11) %>%
+  # semi_join(dcom_ref_ti,.,by=c("IDDEPTXT")) %>%
+  group_by(IDDEPTXT) %>%
+  summarise(v = sum(nafart0919, na.rm = T) / sum(pop17, na.rm = T)) %>%
+  mutate(r = rank(-v)) %>%
+  filter(r >= 82) %>%
+  ggplot() +
+  aes(x = fct_reorder(paste0(r," - ",IDDEPTXT), v, median), y = v) +
+  geom_col() +
+  geom_text(
+    aes(label = round(v, digits = 0)),
+    #position = position_stack(0.95),
+    vjust = 0.5,
+    hjust = 1.2,
+    size = 3,
+    color = "white"
+  ) +
+  coord_flip() +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs(
+    x = "",
+    y = "m² par habitant",
+    title = "Artificialisation entre 2009 et 2018",
+    subtitle = "par rapport à la population des départements les plus denses",
+    caption = "Source : CEREMA, Traitement : DDTM 59",
+    fill = ""
+  )
+```
+
+### Artificialisation au regard des évolutions en matière de ménages et d'emplois
+
+Afin de mieux caractériser l'artificialisation des départements, il est intéressant de confronter ces indicateurs aux évolutions en termes de ménages et d'emplois sur la période 2012-2017 [^5].
+
+[^5]: Et non 2009-2018, comme les diagrammes précédents. Les données INSEE n'étant disponibles à cette échelle que jusqu'à 2017.
+
+Il est assez raisonnable de penser qu'il y a un lien étroit de corrélation entre l'évolution des ménages et l'artificialisation liée à l'habitat et respectivement un lien entre l'évolution de l'emploi et l'artificialisation liée à l'activité.
+
+
+#### Lien entre l'évolution des emplois et l'artificialisation liée à l'activité
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+eff_dcom_ref_ti <- dcom_ref_ti %>% 
+  # récupère les départements les plus consommateurs
+  group_by(IDDEPTXT) %>% 
+  summarise(artif=sum(nafart0919,na.rm=T)) %>%
+  mutate(r=rank(-artif)) %>% 
+  filter(r<=11) %>% 
+  # filtre avec les données qui nous intéressent
+  semi_join(dcom_ref_ti,.,by=c("IDDEPTXT")) %>% 
+  # création des indicateurs d'efficacité
+  group_by(IDREGTXT ,IDDEPTXT) %>%
+  summarise(hamenhab = sum(arthab1217/10000, na.rm = TRUE)/sum(men1217, na.rm = TRUE),
+            haempact = sum(artact1217/10000, na.rm = TRUE)/sum(emp1217, na.rm = TRUE),
+            menhahab = sum(men1217, na.rm = TRUE)/sum(arthab1217/10000, na.rm = TRUE),
+            emphaact = sum(emp1217, na.rm = TRUE)/sum(artact1217/10000, na.rm = TRUE),
+            pop=sum(pop17,na.rm=T),
+            men=sum(men17,na.rm=T),
+            emp=sum(emp17,na.rm=T)) %>% 
+  arrange(desc(menhahab)) %>% mutate(r_men=row_number()) %>% 
+  arrange(desc(emphaact)) %>% mutate(r_emp=row_number())
+```
+
+
+
+Le graphique ci-dessous représente les départements avec en abscisse, la surface consommée à destination de l’emploi et en ordonnée, les évolutions de l’emploi. La couleur identifie la région et la taille du cercle, la population.
+
+Un département ayant gagné des emplois et artificialisé se trouvera alors au-dessus de l’axe des abscisses, comme l'Essonne. À l’inverse, un département ayant perdu des emplois et artificialisé se trouvera sous cet axe comme le Pas-de-Calais. Plus le département se trouve en bas et à droite, plus il a artificialisé ET perdu des emplois. Plus il se trouve en haut et à gauche, plus il aura fait preuve de sobriété foncière tout en développant l'emploi.
+
+Les droites grisées représentent les médianes pour l'artificialisation et l'évolution de l'emploi.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+dcom_ref_ti %>%
+  group_by(IDREGTXT , IDDEPTXT) %>%
+  summarise(
+    artact1217 = sum(artact1217, na.rm = T),
+    emp1217 = sum(emp1217, na.rm = T),
+    pop17 = sum(pop17, na.rm = T)
+  ) %>%
+  ggplot() +
+  aes(
+    x = artact1217 / 10000,
+    y = emp1217,
+    color = IDREGTXT,
+    size = pop17
+  ) +
+  geom_point(alpha = 0.5) +
+  geom_text_repel(aes(label = IDDEPTXT), size = 3) +
+  geom_point(data = .%>% filter(IDDEPTXT == "Nord"), shape = 3, color = "black" )+
+  theme_minimal() +
+  #theme(legend.direction = "vertical") +
+  labs(caption = "Source : CEREMA, Retraitement : DDTM 59") +
+  #   geom_rug(size=0.5)+
+  geom_vline(xintercept = 0, color = "black") +
+  geom_vline(xintercept = {
+    dcom_ref_ti %>%
+      group_by(IDDEPTXT) %>%
+      summarise(artif = sum(artact1217, na.rm = T) / 10000) %>%
+      summarise(v = median(artif, na.rm = T)) %>%
+      pull(v)
+  }
+  ,
+  color = "grey") +
+  
+  geom_hline(yintercept = 0, color = "black") +
+  geom_hline(yintercept = {
+    dcom_ref_ti %>%
+      group_by(IDDEPTXT) %>%
+      summarise(emp1217 = sum(emp1217, na.rm = T)) %>%
+      summarise(v = median(emp1217, na.rm = T)) %>%
+      pull(v)
+  }
+  
+  , color = "grey") +
+  
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs(
+    x = "Ha artificialisé pour l'activité",
+    y = "Evolution de l'emploi entre 2012 et 2017",
+    title = "Lien entre évolution des emplois et artificialisation",
+    #subtitle = "",
+    caption = "Années : 2012-2017, Source : CEREMA, Traitement : DDTM 59",
+    fill = ""
+  ) +
+  scale_y_continuous(
+    labels = function(x)
+      format(x, big.mark = " ", scientific = FALSE)
+  ) +
+  scale_x_continuous(
+    labels = function(x)
+      format(x, big.mark = " ", scientific = FALSE)
+  ) +
+  #guides(color = guide_legend(title = "Type de communes",override.aes = aes(label = "")))+
+  scale_size_continuous(guide = FALSE)
+#theme(legend.position = "bottom")
+
+ # dcom_ref_ti %>%
+ #      group_by(IDDEPTXT) %>%
+ #   filter(IDDEPTXT=="Nord") %>% 
+ #      summarise(emp1217 = sum(artact1217, na.rm = T)/10000)
+
+```
+
+
+Cette représentation permet de percevoir plusieurs grandes dynamiques au regard de l'artificialisation liée à l'activité, notamment au regard des médianes et des extrêmes. Nous ne attarderons pas sur une analyse globale de la situation, mais simplement sur le cas spécifique du Nord.
+
+Le département du Nord fait partie des départements ayant le plus artificialisé (884 Ha contre une médiane nationale à 323 Ha) et fait également partie des départements médians en matière d'évolution de l'emploi (-558 contre une médiane nationale à -1 627 emplois).
+
+Il fait donc partie du groupe très restreint des départements artificialisant beaucoup pour un résultat en matière d'emplois relativement inexistant. *On peut noter que le Pas-de-Calais est dans une situation encore plus marquée avec des pertes d'emplois et une artificialisation supérieure à celle du Nord.*
+
+
+
+#### Lien entre l'évolution des ménages et l'artificialisation liée à l'habitat
+
+
+Le graphique ci-dessous représente les départements avec, en abscisse, la surface consommée à destination de l’habitat et en ordonnée, les évolutions des ménages. La couleur identifie la région et la taille du cercle, la population.
+
+Un département ayant gagné des ménages et artificialisé se trouvera alors au-dessus de l’axe des abscisses, comme la Loire-Atlantique. À l’inverse, un département ayant perdu des ménages et artificialisé se trouvera sous cet axe comme Paris. 
+
+Les droites grisées représentent les médianes pour l'artificialisation et l'évolution des ménages.
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+dcom_ref_ti %>% 
+  group_by(IDREGTXT ,IDDEPTXT) %>%
+  summarise(arthab1217=sum(arthab1217,na.rm=T),
+            men1217=sum(men1217,na.rm=T),
+            pop17=sum(pop17,na.rm=T)) %>% 
+  ggplot()+
+  aes(x=arthab1217/10000, y=men1217, color=IDREGTXT, size=pop17)+
+  geom_text_repel(aes(label=IDDEPTXT),size=3,max.overlaps = 11)+
+    geom_point(data = .%>% filter(IDDEPTXT == "Nord"), shape = 3, color = "black" )+
+
+  theme_minimal()+
+  #theme(legend.direction = "vertical") +
+  labs(caption = "Source : CEREMA, Retraitement : DDTM 59")+
+ #   geom_rug(size=0.5)+
+  geom_vline(xintercept=0,color="black")+
+   geom_vline(xintercept = {
+    dcom_ref_ti %>%
+      group_by(IDDEPTXT) %>%
+      summarise(artif = sum(arthab1217, na.rm = T) / 10000) %>%
+      summarise(v = median(artif, na.rm = T)) %>%
+      pull(v)
+  }
+  ,
+  color = "grey") +
+  geom_hline(yintercept = {
+    dcom_ref_ti %>%
+      group_by(IDDEPTXT) %>%
+      summarise(men1217 = sum(men1217, na.rm = T)) %>%
+      summarise(v = median(men1217, na.rm = T)) %>%
+      pull(v)
+  }
+  
+  , color = "grey") +
+  geom_hline(yintercept=0,color="black")+
+    geom_point(alpha=0.5)+
+
+  theme_minimal()+
+  theme(legend.position = "none")+
+  labs(x = "Ha artificialisé pour l'habitat",
+       y = "Evolution des ménages entre 2012 et 2017",
+       title = "Lien entre l’évolution des ménages et l’artificialisation liée à l’habitat",
+       #subtitle = "",
+       caption = "Années : 2012-2017, Source : CEREMA, Traitement : DDTM 59",
+       fill = "")+
+  scale_y_continuous(labels = function(x) format(x, big.mark = " ", scientific = FALSE))+
+  scale_x_continuous(labels = function(x) format(x, big.mark = " ", scientific = FALSE))+
+  #guides(color = guide_legend(title = "Type de communes",override.aes = aes(label = "")))+
+  scale_size_continuous(guide = FALSE)
+    #theme(legend.position = "bottom")
+
+# dcom_ref_ti %>%
+#   group_by(IDDEPTXT) %>%
+#   filter(IDDEPTXT=="Nord") %>%
+#   summarise(v = sum(men1217, na.rm = T))
+# dcom_ref_ti %>%
+#   group_by(IDDEPTXT) %>%
+#   filter(IDDEPTXT=="Nord") %>%
+#   summarise(v = sum(men1217, na.rm = T))
+
+```
+
+On observe une corrélation entre le nombre d'hectares artificialisés à destination de l'habitat et l'évolution des ménages sur la période. *On retrouve cette corrélation également aux échelles inférieures*
+
+Le département du Nord suit cette tendance avec une **artificialisation liée à l'habitat supérieure à la médiane (1 800 Ha contre une médiane à 942 Ha)** et **une évolution des ménages de +35 000 contre une médiane à +8 300.**
+
+
+### Le Nord : 20 nouveaux ménages par Ha artificialisé, mais pas d'emplois créée entre 2012 et 2017
+
+Les ratios présentés ci-après mettent en avant le rapport entre la surface artificialisée (liée à la destination) et l'évolution des ménages ou de l'emploi. Ces ratios permettent de mieux appréhender l'efficacité avec laquelle la commune a accueilli de nouveaux ménages (et donc logement) ou emplois.
+
+> À ce stade, si l’approche par le nombre de ménages est robuste, l’approche par le nombre d’emplois est moins satisfaisante.
+>
+> En effet, le nombre d’emplois a une forte variabilité dans le temps : une entreprise qui embauche n’aura pas forcément besoin de bâti supplémentaire. 
+> À l’inverse, une industrie pourrait avoir besoin de s’étendre pour de nouveaux investissements sans forcément embaucher.
+> Un des derniers effets est celui de structure : tous les types d’emplois n’ont pas forcément besoin du même type d’immobilier, et ont donc une efficacité potentielle différente.
+> À titre d’exemple, une plate-forme de téléconseillers aura besoin de moins d’espace qu’une carrière ou qu’une plate-forme logistique. Pour faire une analogie avec le cas précédent, il pourrait être intéressant de travailler avec le nombre d’entreprises présentes sur le territoire. Cependant, une telle approche nécessiterait de lourds développements pour être opérationnelle, et ce sans garantie de résultats. Faute de mieux, la pression en termes économiques sera approchée par le nombre d’emplois globaux sur le territoire.
+>
+>
+> `r tufte::quote_footer("CEREMA, Rapport sur les déterminants de l'artificialisation")`
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+  
+dcom_ref_ti %>%
+  filter(IDREGTXT != "Île-de-France") %>%
+  group_by(IDREGTXT , IDDEPTXT) %>%
+  summarise(
+    hamenhab = sum(arthab1217 / 10000, na.rm = TRUE) / sum(men1217, na.rm = TRUE),
+    haempact = sum(artact1217 / 10000, na.rm = TRUE) / sum(emp1217, na.rm = TRUE),
+    menhahab = sum(men1217, na.rm = TRUE) / sum(arthab1217 / 10000, na.rm = TRUE),
+    emphaact = sum(emp1217, na.rm = TRUE) / sum(artact1217 / 10000, na.rm = TRUE),
+    pop = sum(pop17, na.rm = T),
+    men = sum(men17, na.rm = T),
+    emp = sum(emp17, na.rm = T)
+  ) %>%
+  arrange(desc(menhahab)) %>% mutate(r_men = row_number()) %>%
+  arrange(desc(emphaact)) %>% mutate(r_emp = row_number()) %>%
+  ggplot() +
+  aes(x = emphaact,
+      y = menhahab,
+      color = IDDEPTXT,
+      size = pop) +
+
+  geom_vline(xintercept = 0, color = "black") +
+  geom_hline(yintercept = 0, color = "black") +
+  geom_vline(xintercept = {
+    dcom_ref_ti %>%
+      filter(IDREGTXT != "Île-de-France") %>%
+      group_by(IDREGTXT , IDDEPTXT) %>%
+      summarise(
+        hamenhab = sum(arthab1217 / 10000, na.rm = TRUE) / sum(men1217, na.rm = TRUE),
+        haempact = sum(artact1217 / 10000, na.rm = TRUE) / sum(emp1217, na.rm = TRUE),
+        menhahab = sum(men1217, na.rm = TRUE) / sum(arthab1217 / 10000, na.rm = TRUE),
+        emphaact = sum(emp1217, na.rm = TRUE) / sum(artact1217 / 10000, na.rm = TRUE),
+        pop = sum(pop17, na.rm = T),
+        men = sum(men17, na.rm = T),
+        emp = sum(emp17, na.rm = T)
+      ) %>%
+      arrange(desc(menhahab)) %>% mutate(r_men = row_number()) %>%
+      arrange(desc(emphaact)) %>% mutate(r_emp = row_number()) %>% ungroup() %>%
+      summarise(emphaact = median(emphaact, na.rm = T)) %>% pull(emphaact)
+  }
+  ,
+  color = "grey") +
+  geom_hline(yintercept = {
+    dcom_ref_ti %>%
+      filter(IDREGTXT != "Île-de-France") %>%
+      group_by(IDREGTXT , IDDEPTXT) %>%
+      summarise(
+        hamenhab = sum(arthab1217 / 10000, na.rm = TRUE) / sum(men1217, na.rm = TRUE),
+        haempact = sum(artact1217 / 10000, na.rm = TRUE) / sum(emp1217, na.rm = TRUE),
+        menhahab = sum(men1217, na.rm = TRUE) / sum(arthab1217 / 10000, na.rm = TRUE),
+        emphaact = sum(emp1217, na.rm = TRUE) / sum(artact1217 / 10000, na.rm = TRUE),
+        pop = sum(pop17, na.rm = T),
+        men = sum(men17, na.rm = T),
+        emp = sum(emp17, na.rm = T)
+      ) %>%
+      arrange(desc(menhahab)) %>% mutate(r_men = row_number()) %>%
+      arrange(desc(emphaact)) %>% mutate(r_emp = row_number()) %>% ungroup() %>%
+      summarise(menhahab = median(menhahab, na.rm = T)) %>% pull(menhahab)
+    
+    
+  }
+  
+  , color = "grey") +
+  geom_point() +
+      geom_point(data = .%>% filter(IDDEPTXT == "Nord"), shape = 3, color = "black" )+
+
+  geom_rug(size = 0.5) +
+  geom_text_repel(aes(label = IDDEPTXT), size = 3) +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs(
+    x = "Emplois par Ha artificialisé",
+    y = "Ménages Ha artificialisé",
+    title = "Efficacités de l'artificialisation entre 2012 et 2017",
+    subtitle = "pour l'ensemble des département hors Île-de-france",
+    caption = "Source : CEREMA, Traitement : DDTM 59",
+    fill = ""
+  )
+
+
+```
+
+Ce diagramme met en évidence les départements qui ont le mieux optimiser leur artificialisation sur la période. *L'Île-de-France n'est pas représentée pour des questions d'échelles.* On note par exemple que le département du Rhône a connu une dynamique d'artificialisation très efficace avec près de 50 emplois par Ha artificialisé lié à l'activité et près de 45 ménages par Ha artificialisé lié à l'habitat.
+
+On observe une légère corrélation entre les deux efficacités : *plus un département a tendance à être efficace en matière d'activité, plus il a tendance à l'être également en matière d'habitat.*
+
+Le département du Nord se trouve dans une situation particulière puisqu'il bénéficie d'une efficacité liée à l'habitat bien supérieure à la médiane (2 fois supérieure) et bien supérieure aux départements ayant la même efficacité liée à l'activité. Bien que nulle, l'efficacité en matière d'artificialisation liée à l'activité du département du Nord est tout de même supérieure à la médiane (-5,56 emplois par Ha artificialisé).
+
+## Vers une baisse du rythme d'artificialisation généralisée ?
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+
+dcom_ti %>%
+   group_by(destination,annee=year(annee1)) %>% 
+  filter(destination %in% c("Activité","Habitat")) %>% 
+  summarise(valeur=sum(valeur/10000,na.rm=T)) %>% 
+  ggplot()+
+  aes(x = annee, y=valeur, color = destination)+
+  geom_line()+
+  labs(x = "",
+      y = "Ha artificialisés",
+      title = "Artificialisation entre 2009 et 2018",
+      subtitle = "pour la France entière",
+      caption = "Source : CEREMA, Traitement : DDTM 59",
+      fill = "")+
+ theme_minimal()+
+ theme(legend.position = "bottom")
+
+baissehabdept <- round((218-468)/468*100,digits=0)
+baisseactdept <- round((126-229)/229*100,digits=0)
+baissehabnat <- round((15640-21608)/21608*100,digits = 0)
+baisseactnat <- round((5918-7674)/7674*100,digits=0)
+```
+
+
+L'analyse temporelle des dynamiques d'artificialisation permet de mieux appréhender ce phénomène sur la dernière décennie. 
+
+Les diagrammes ci-dessous reprennent l'artificialisation par destination pour les départements les plus consommateurs. Les échelles étant fixes pour l'ensemble des départements, cela permet une meilleure comparaison des évolutions relatives et absolues par département. **Attention toutefois, seuls les 11 départements les plus consommateurs sont représentés. Ainsi même si le Nord peut apparaître comme plus sobre que les autres, ce n'est que par ce qu'il est comparé aux seuls départements plus consommateurs que lui.**
+
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+dcom_ti %>%
+  # Pour récupérer seulement les 11 départements les plus consommateurs 
+  group_by(IDDEPTXT) %>% 
+  summarise(artif = round(sum(valeur/10000,na.rm=T),digits = 0)) %>% 
+  arrange(desc(artif)) %>% 
+  ungroup() %>% 
+  top_n(n = 11) %>% 
+  # on refait la jointure avec dcom_ti pour récupérer les données valeur
+  semi_join(dcom_ti,.,by=c("IDDEPTXT")) %>% 
+  group_by(IDDEPTXT,destination,annee=year(annee1)) %>% 
+  filter(destination %in% c("Activité","Habitat")) %>% 
+  summarise(valeur=sum(valeur/10000,na.rm=T)) %>% 
+  ggplot()+
+  aes(x = annee, y=valeur, color = destination)+
+  geom_line()+
+  facet_wrap(vars(IDDEPTXT))+
+  labs(x = "",
+      y = "Ha artificialisés",
+      title = "Artificialisation entre 2009 et 2018",
+      subtitle = "pour les départements les plus consommateurs de foncier",
+      caption = "Source : CEREMA, Traitement : DDTM 59",
+      fill = "")+
+   theme_minimal()+
+ theme(legend.position = "bottom")+
+guides(color = guide_legend(title = "Destination")) +
+  theme(axis.text = element_text(size = 7))
+
+```
+
+Le Nord a connu une baisse notable (`r baissehabdept`%, contre `r baissehabnat` au niveau national) de la consommation d'Espaces Naturels Agricoles et Forestiers (ENAF) à destination de l'habitat, ainsi qu'une forte baisse en ce qui concerne les ENAF à destination de l'activité : `r baisseactdept`% contre `r baisseactnat`% pour la France.
+
+L'artificialisation liée à l'habitat baisse donc plus rapidement que celle liée à l'activité.
+
+Par ailleurs, on note que cette tendance à la baisse est continue sur l'ensemble de la décennie contrairement à d'autres départements qui connaissent des dynamiques par pics.
+
+## Une baisse du rythme, mais une augmentation qui s'accumule
+
+Il est souvent réducteur de ne prendre en considération que l'évolution du flux d'artificialisation sans considérer qu'il s'agit de la création d'un stock : chaque année, des hectares autrefois naturels, agricoles ou forestiers viennent faire augmenter la superficie déjà artificialisée du territoire. **Même si l'artificialisation pour le département du Nord a baissé, le volume total de surfaces artificielles a quant à lui augmenté.**
+
+L'objectif du *"Zéro Artificialisation Nette"* implique donc un flux nul dès que possible, afin de ne pas continuer indéfiniment à augmenter la part des surfaces artificielles du territoire.
+
+Le diagramme suivant reprend les données précédentes en représentant l'artificialisation cumulée dans le temps.
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# diagramme geom_line mais en cumulé
+dcom_ti %>%
+  # Pour récupérer seulement les 20 départements les plus consommateurs 
+  group_by(IDDEPTXT) %>% 
+  summarise(artif = round(sum(valeur/10000,na.rm=T),digits = 0)) %>% 
+  arrange(desc(artif)) %>% 
+  ungroup() %>% 
+  top_n(n = 11) %>% 
+  # on refait la jointure avec dcom_ti pour récupérer les données valeur
+  semi_join(dcom_ti,.,by=c("IDDEPTXT")) %>% 
+  group_by(IDDEPTXT,destination,annee=year(annee1)) %>% 
+  filter(destination %in% c("Activité","Habitat")) %>% 
+  summarise(valeur=sum(valeur/10000,na.rm=T)) %>% 
+  mutate(valeur_cumulee=cumsum(valeur)) %>% 
+  ggplot()+
+  aes(x = annee, y=valeur_cumulee, color = destination)+
+  geom_line()+
+  facet_wrap(vars(IDDEPTXT))+
+  labs(x = "",
+      y = "Ha artificialisés",
+      title = "Artificialisation cumulée entre 2009 et 2018",
+      subtitle = "pour les départements les plus consommateurs de foncier",
+      caption = "Source : CEREMA, Traitement : DDTM 59",
+      fill = "")+
+ theme_minimal()+
+ theme(legend.position = "bottom")+
+  guides(color = guide_legend(title = "Destination")) +
+  theme(axis.text = element_text(size = 7))+
+    scale_y_continuous(labels = function(x) format(x, big.mark = " ", scientific = FALSE))
+
+
+```
+
+
+Ces figures permettent de mieux appréhender les évolutions ainsi que les divergences entre les flux liés à l'activité et l'habitat. On constate ainsi que la *pente* liée à l'activité est aussi importante que les autres départements contrairement à ce que pouvait laisser croire la vision par flux annuel.
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+input_summarise <- function (x) {
+  summarise(
+    x,
+    pop_2012 = sum(pop12, na.rm = T),
+    pop_2017 = sum(pop17, na.rm = T),
+    pop_1217 = sum(pop1217, na.rm = T),
+    popn_2012 = 100,
+    popn_2017 = (pop_2017 * popn_2012) / pop_2012,
+    emp_2012 = sum(emp12, na.rm = T),
+    emp_2017 = sum(emp17, na.rm = T),
+    emp_1217 = sum(emp1217, na.rm = T),
+    empn_2012 = 100,
+    empn_2017 = (emp_2017 * empn_2012) / emp_2012,
+    men_2012 = sum(men12, na.rm = T),
+    men_2017 = sum(men17, na.rm = T),
+    men_1217 = sum(men1217, na.rm = T),
+    menn_2012 = 100,
+    menn_2017 = (men_2017 * menn_2012) / men_2012,
+    partart_2012 = sum(partart12, na.rm = T),
+    partart_2017 = sum(partart18, na.rm = T),
+    arthab_1217 = sum(arthab1217, na.rm = T),
+    artact_1217 = sum(artact1217, na.rm = T),
+    artn_2012 = 100,
+    artn_2017 = (partart_2017 * artn_2012) / partart_2012
+  ) %>%
+    pivot_longer(cols = pop_2012:artn_2017,
+                 names_to = "data",
+                 values_to = "valeur") %>%
+    separate(data, into = c("data", "annee")) %>%
+    
+    filter(data %in% c("popn", "menn", "empn", "artn")) %>%
+    mutate( data =
+      case_when(
+        data == "popn" ~ "Population",
+        data == "empn" ~ "Emplois",
+        data == "menn" ~ "Ménages",
+        data == "artn" ~ "Artificialisation"
+      )
+    ) %>%
+    mutate(annee = as.Date(paste0(annee), "%Y"))
+}  
+  
+input_summarise_plot <- function(x) {
+  ggplot(x) +
+    aes(x = year(annee),
+        y = valeur / 100,
+        color = data) +
+    geom_line() +
+    theme_minimal() +
+    theme(legend.position = "none") +
+    labs(x = "",
+         y = "Evolution en base 100",
+         title = "Evolution des indicateurs entre 2012 et 2017") +
+    guides(color = guide_legend(title = "Indicateurs noramlisés")) +
+    scale_y_continuous(labels = scales::percent) +
+    geom_label_repel(
+      data = x %>% filter(year(annee) == max(year(annee))),
+      aes(label = data),
+      nudge_x = 1,
+      na.rm = TRUE
+    )
+  # geom_dl(aes(label = data), method = list(dl.trans(x = x + 0.2), "last.points", cex = 0.8)) +
+  # theme(plot.margin = unit(c(1,5,1,1), "lines"))
+  
+}
+
+```
+
+
+## Focus sur les Aires d'Attraction des Villes
+
+Afin de mieux comprendre la dynamique du département du Nord, on peut s'intéresser plus spécifiquement à l'artificialisation au regard des nouvelles Aires d'Attraction des Villes définies par l'INSEE en 2020.
+
+Le zonage en **Aires d'Attractions des Villes** qui a été élaborée par l'INSEE permet de mieux appréhender les dynamiques en regroupant les communes selon la méthodologie suivante :
+
+*L’aire d’attraction d’une ville est l’ensemble de communes, d’un seul tenant et sans enclave, constitué d’un pôle de population et d’emploi et d’une couronne qui rassemble les communes dont au moins 15 % des actifs travaillent dans le pôle. Les aires sont classées suivant le nombre total d’habitants de l’aire. Les principaux seuils retenus sont : 700 000 habitants, 200 000 habitants et 50 000 habitants. Les aires dont le pôle est situé à l’étranger sont classées dans la catégorie correspondant à leur population totale (française et étrangère).*
+
+La représentation ci-dessous met en évidence l'artificialisation des plus grandes aires (supérieures à 700 000 habitants).
+
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+
+fr %>%
+  filter(LIB_TDAAV2017 %in% c("Aire de 1 000 000 d’habitants ou plus (hors Paris)",
+                              "Aire de 700 000 à moins de 1 000 000 d’habitants")         
+  ) %>%
+  group_by(lib_aav2020) %>% 
+  summarise() %>% 
+  tm_shape()+
+  tm_fill()+
+  tm_text(text = "lib_aav2020")+
+  fr %>% select(geometry) %>% summarise() %>% 
+  tm_shape()+
+  tm_borders()+
+  tm_layout(frame = F,
+            main.title = paste("Aires d'Attractions des Villes","\n de plus de 700k habitants"),
+            main.title.position = "center",
+            legend.outside = T)+
+  tm_credits("Année : 2020, \nSource : INSEE,\nRetraitement : DDTM 59",position = c("left","bottom"),size = 0.4)
+```
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ dcom_ti %>%
+  filter(LIB_TDAAV2017 %in% c("Aire de 1 000 000 d’habitants ou plus (hors Paris)",
+                              "Aire de 700 000 à moins de 1 000 000 d’habitants")         
+  ) %>%
+  group_by(lib_aav2020) %>% 
+  summarise(artif_typ = round(sum(valeur/10000,na.rm=T),digits = 0)) %>% 
+  ggplot()+
+  aes(x = fct_reorder(lib_aav2020,artif_typ,sum), y=artif_typ)+
+  geom_col()+
+  labs(x = "",
+       y = "Ha artificialisés",
+       title = "Artificialisation entre 2009 et 2018",
+       subtitle = "pour les Aires d'Attractions des Villes de plus de 700k habitants",
+       caption = "Source : CEREMA, Traitement : DDTM 59",
+       fill = "")+
+  coord_flip() +
+  geom_text(
+    aes(label = round(artif_typ, digits = 0)),
+    vjust = 0.5,
+    hjust=1.2,
+    size = 3,
+    color = "white"
+  ) +
+  theme_minimal()+
+  guides(fill = guide_legend(title = "Destination"))+
+  theme(legend.position = "right")+
+  scale_y_continuous(labels = function(x) format(x, big.mark = " ", scientific = FALSE))
+```
+
+On observe une très grande disparité en matière d'artificialisation. L'aire de Lille se retrouve en 8^ème^ position parmi les aires les plus peuplées (hors Paris), soit au même niveau que l'aire de Montpellier.
+
+### Dynamique des aires d'attraction par destination
+
+Afin de mieux comprendre les dynamiques de ces aires, on peut tout d'abord réaliser un diagramme permettant de situer chaque aire en fonction de leur poids en ménages et emplois afin de mieux appréhender leur typologie.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# répartition en scatter plot des gros pôles par type d'artificisation
+dcom_ref_ti %>%
+  filter(LIB_TDAAV2017 %in% c("Aire de 1 000 000 d’habitants ou plus (hors Paris)",
+                              "Aire de 700 000 à moins de 1 000 000 d’habitants")) %>%
+  group_by(IDREGTXT,lib_aav2020) %>% 
+  summarise(emp17=sum(emp17,na.rm=T),
+            men17=sum(men17,na.rm=T),
+            pop17=sum(pop17,na.rm=T)) %>% 
+  ggplot()+
+  aes(x=emp17, y=men17, color=IDREGTXT, size=pop17, label=lib_aav2020)+
+  geom_point()+
+  geom_rug(size=0.5)+
+  geom_text_repel(size=3)+
+  geom_vline(xintercept=0,color="black")+
+  geom_hline(yintercept=0,color="black")+
+  theme_minimal()+
+  theme(legend.position = "none")+
+  labs(x = "Nb d'emplois",
+       y = "Nb de ménages",
+       title = "Une répartition liénaire des emplois et des ménages",
+       subtitle = "pour les Aires d'Attractions des Villes de plus de 700k habitants",
+       caption = "Années : 2009-2018, Source : CEREMA, Traitement : DDTM 59",
+       fill = "")+
+  scale_y_continuous(labels = function(x) format(x, big.mark = " ", scientific = FALSE))+
+  scale_x_continuous(labels = function(x) format(x, big.mark = " ", scientific = FALSE))+
+  geom_abline(slope=1, intercept=0, color = "grey")
+
+```
+
+La corrélation entre emplois et ménages est criante : plus une aire possède d'emplois, plus elle a de ménages - et inversement - **dans un rapport d'un pour un**.
+
+Une fois ces éléments de contexte présentés, on peut alors observer si ces aires - qui ont autant d'emplois que de ménages - artificialisent selon la même dynamique.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# répartition en scatter plot des gros pôles par type d'artificisation
+dcom_ref_ti %>%
+  filter(LIB_TDAAV2017 %in% c("Aire de 1 000 000 d’habitants ou plus (hors Paris)",
+                              "Aire de 700 000 à moins de 1 000 000 d’habitants")) %>%
+  group_by(IDREGTXT,lib_aav2020) %>% 
+  summarise(nafart0919=sum(nafart0919,na.rm=T),
+            artact0919=sum(artact0919/10000,na.rm=T),
+            arthab0919=sum(arthab0919/10000,na.rm=T),
+            pop17=sum(pop17,na.rm=T)) %>% 
+  arrange(desc(nafart0919)) %>% 
+  ggplot()+
+  aes(x=artact0919, y=arthab0919, color=IDREGTXT, size=pop17, label=lib_aav2020)+
+  geom_point()+
+  geom_rug(size=0.5)+
+  geom_text_repel(size=3)+
+  geom_vline(xintercept=0,color="black")+
+  geom_hline(yintercept=0,color="black")+
+  theme_minimal()+
+  theme(legend.position = "none")+
+  labs(x = "Ha artificialisé pour l'activité",
+       y = "Ha artificialisé pour l'habitat",
+       title = "Rapports de forces des destinations de l'artificialisation",
+       subtitle = "pour les Aires d'Attractions des Villes de plus de 700k habitants",
+       caption = "Années : 2009-2018, Source : CEREMA, Traitement : DDTM 59",
+       fill = "")+
+  scale_y_continuous(labels = function(x) format(x, big.mark = " ", scientific = FALSE))+
+  scale_x_continuous(labels = function(x) format(x, big.mark = " ", scientific = FALSE))+
+  geom_abline(slope=1, intercept=0, color = "grey")+
+  geom_abline(slope=4, intercept=0, color = "grey")
+
+```
+
+*Deux droites sont affichées pour faciliter la lecture : une droite $y=x$ et une seconde $y=4x$*
+
+On retrouve une relation particulière entre l'habitat et l'activité qui serait de l'ordre de un pour quatre. 1 Ha artificialisé pour l'activité implique 4 Ha artificialisés pour l'habitat - *bien qu'il n'y ait pas de relation de cause à effet démontrée entre ces deux types d'artificialisation*.
+
+Quelques aires ne semblent pas suivre cette tendance : Strasbourg, Lille, Lyon et Marseille.
+
+On peut constater la singularité de l'aire de Lille qui se trouve dans la moyenne en matière d'artificialisation à destination de l'activité et bien en deçà de nombreuses aires par rapport à l'habitat.
+
+Le graphique ci-dessous représente les mêmes données mais avec une approche plus classique permettant de mieux appréhender les proportions entre les deux grandes destinations de l'artificialisation.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+dcom_ti %>%
+ filter(LIB_TDAAV2017 %in% c("Aire de 1 000 000 d’habitants ou plus (hors Paris)",
+                              "Aire de 700 000 à moins de 1 000 000 d’habitants")) %>%
+  group_by(lib_aav2020,destination,annee=year(annee1)) %>% 
+  filter(destination %in% c("Activité","Habitat"),lib_aav2020!="Commune hors attraction des villes") %>% 
+  group_by(lib_aav2020,destination) %>% 
+  summarise(valeur = sum(valeur,na.rm=T)/10000) %>% 
+  ggplot()+
+  aes(x = fct_reorder(lib_aav2020,valeur,sum), weight=valeur/10000, fill = destination,
+            label=percent(after_stat(prop), accuracy = 1)) +
+  geom_bar(position = "fill")+
+  geom_text(aes(by = as.factor(lib_aav2020)),
+              stat="prop",
+              position = position_fill(.5),
+              size=3,
+              color="white")+ 
+  coord_flip()+
+  guides(fill = guide_legend(title = "Destination"))+
+theme_minimal()+
+theme(legend.position = "right")+
+  labs(x = "",
+       y = "",
+       title = "Rapports de forces des destinations de l'artificialisation",
+       subtitle = "pour les Aires d'Attractions des Villes de plus de 700k habitants",
+       caption = "Années : 2009-2018, Source : CEREMA, Traitement : DDTM 59",
+       fill = "")+
+  scale_y_continuous(labels = scales::percent)
+  #scale_x_continuous(labels=percent)+
+  #geom_text(aes(label = round(valeur/10000,digits = 1)),position = position_stack(0.95), vjust=0.5, size=3, color="white")  
+```
+
+### Dynamique temporelle 
+
+
+De la même manière que pour les départements, il est intéressant d'analyser les dynamiques d'artificialisation en fonction du temps.
+
+Les deux illustrations ci-dessous reprennent à nouveau les évolutions par type de destination, soit en représentant le flux annuel, soit en représentant les surfaces cumulées sur la décennie.
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+dcom_ti %>%
+  # Pour récupérer seulement les 20 départements les plus consommateurs 
+   filter(LIB_TDAAV2017 %in% c("Aire de 1 000 000 d’habitants ou plus (hors Paris)",
+                              "Aire de 700 000 à moins de 1 000 000 d’habitants")) %>%
+  group_by(lib_aav2020,destination,annee=year(annee1)) %>% 
+  filter(destination %in% c("Activité","Habitat"),lib_aav2020!="Commune hors attraction des villes") %>% 
+  summarise(valeur=sum(valeur/10000,na.rm=T)) %>% 
+  ggplot()+
+  aes(x = annee, y=valeur, color = destination)+
+  geom_line()+
+  facet_wrap(vars(lib_aav2020))+
+  labs(x = "",
+      y = "Ha artificialisés",
+      title = "Artificialisation entre 2009 et 2018",
+      subtitle = "pour les Aires d'Attractions des Villes de plus de 700k habitants",
+      caption = "Source : CEREMA, Traitement : DDTM 59",
+      fill = "")+
+ theme_minimal()+
+ theme(legend.position = "bottom")+
+  guides(color = guide_legend(title = "Destination")) +
+  theme(axis.text = element_text(size = 7))+
+    scale_y_continuous(labels = function(x) format(x, big.mark = " ", scientific = FALSE))
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+
+dcom_ti %>%
+  # Pour récupérer seulement les 20 départements les plus consommateurs 
+   filter(LIB_TDAAV2017 %in% c("Aire de 1 000 000 d’habitants ou plus (hors Paris)",
+                              "Aire de 700 000 à moins de 1 000 000 d’habitants")) %>%
+  group_by(lib_aav2020,destination,annee=year(annee1)) %>% 
+  filter(destination %in% c("Activité","Habitat"),lib_aav2020!="Commune hors attraction des villes") %>% 
+  summarise(valeur=sum(valeur/10000,na.rm=T)) %>% 
+  mutate(valeur_cumulee=cumsum(valeur)) %>% 
+  ggplot()+
+  aes(x = annee, y=valeur_cumulee, color = destination)+
+  geom_line()+
+  facet_wrap(vars(lib_aav2020))+
+  labs(x = "",
+      y = "Ha artificialisés",
+      title = "Artificialisation cumulée entre 2009 et 2018",
+      subtitle = "pour les Aires d'Attractions des Villes de plus de 700k habitants",
+      caption = "Source : CEREMA, Traitement : DDTM 59",
+      fill = "")+
+ theme_minimal()+
+ theme(legend.position = "bottom")+
+  guides(color = guide_legend(title = "Destination")) +
+  theme(axis.text = element_text(size = 7))+
+    scale_y_continuous(labels = function(x) format(x, big.mark = " ", scientific = FALSE))
+
+```
+
+
+Les deux graphiques laissent à penser une __certaine stabilité quant à l'artificialisation sur l'aire d'attraction__. Cette tendance semble être identique pour l'ensemble des grandes aires à quelques exceptions près (Marseille pour l'activité, Bordeaux pour l'habitat).
+
+
+
+\newpage
+
+# L'artificialisation dans le Nord à l'échelle des SCoT
+
+## Le SCoT : périmètre décisionnel permettant une analyse et une projection du phénomènes d'artificialisation.
+
+Les éléments avancés jusqu'à présent relatent les surfaces et tendances d'artificialisation à l'échelle agrégée du département ou de l'aire d'attraction. Ces analyses permettent de faire émerger des enseignements, mais ne reflètent pas la situation infra-départementale.
+
+Le Schéma de cohérence territoriale (SCoT) est un document d'urbanisme qui détermine, à l’échelle de plusieurs communes ou groupements de communes, un projet de territoire visant à mettre en cohérence l'ensemble des politiques sectorielles, notamment en matière d’habitat, de mobilité, d’aménagement commercial, d’environnement et de paysage. 
+
+Plus particulièrement, il détermine les orientations générales de l'organisation de l'espace et les grands équilibres entre les espaces urbains et à urbaniser et les espaces ruraux, naturels, agricoles et forestiers. Il définit les conditions d'un développement urbain maîtrisé et les principes de restructuration des espaces urbanisés, de revitalisation des centres urbains et ruraux, de mise en valeur des entrées de ville, de valorisation des paysages et de prévention des risques. 
+
+Ce périmètre de gouvernance est un des éléments clés de l'aménagement du territoire. C'est  à cette échelle intermédiaire - entre le SRADDET et les PLU(i) - que sont prises les décisions entraînant les dynamiques d'artificialisation infra.
+
+Il est donc intéressant d'avoir une approche globale en analysant dans un premier temps les dynamiques d'artificialisation des SCoTs, avant d'analyser plus finement les dynamiques au sein de chaque périmètre.
+
+## Des dynamiques d'artificialisation différentes selon les territoires
+
+### Dynamique globale d'artificialisation
+
+#### Artificialisation cumulée du SCoT
+
+
+Le graphique ci-dessous représente l'artificialisation cumulée sur la période d'étude pour les 7 SCOTs du département du Nord.
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# artificialisation cumulée par scot ###########################################
+# totale
+dcomdept_ref_ti %>% 
+  group_by(lib_scot) %>% 
+  summarise(artif=sum(nafart0919/10000,na.rm = T)) %>% 
+  ggplot()+
+  aes(x = fct_reorder(lib_scot,artif,sum), y=artif, fill = lib_scot)+
+  geom_col()+
+  labs(x = "",
+      y = "Ha artificialisés",
+      title = "Artificialisation cumulée par SCoT",
+      subtitle = "entre 2009 et 2018",
+      caption = "Année : 2009-2018, Source : CEREMA, Traitement : DDTM 59",
+      fill = "")+
+ geom_text(aes(label = round(artif,digits = 0)),hjust=1.2, vjust=0.5, size=3, color="white")+
+  coord_flip() +
+ theme_minimal()+
+ theme(legend.position = "none")+
+    scale_y_continuous(labels = function(x) format(x, big.mark = " ", scientific = FALSE))
+
+```
+
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+  dcomdept_ref_ti %>%
+  group_by(lib_scot) %>% 
+  summarise(artif=100*
+              sum(nafart0919/10000,na.rm = T)
+            /
+              dcomdept_ref_ti %>% summarise(art=sum(nafart0919/10000,na.rm = T)) %>% pull(art)
+)
+
+dcomdept_ref_ti %>% 
+  group_by(lib_scot) %>% 
+  summarise(artif=sum(nafart0919/10000,na.rm = T)) 
+```
+
+
+Avec plus de 1500 Ha d'espace artificialisé, le SCOT de la MEL est - de loin - le territoire qui a le plus artificialisé durant la décennie couverte par les données (près de 28% des surfaces artificialisées contre 16% pour Valenciennes et 14,5% pour le Sambre-Avesnois).
+
+On peut noter que le classement des surfaces artificialisées ne semblent pas représenter le classement démographique du département.
+
+Le graphique ci-après permet de remettre cet éléments dans le contexte. En effet, l'approche d'analyse présentée ci-après consiste à observer la part de la surface artificialisée par SCoT au regard de la part de la population. *Si un territoire représente 30% de la population, on pourrait être tenté de penser qu'il doit représenter le même ordre de grandeur en matière d'artificialisation*.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+library(ggalluvial)
+dcomdept_ref_ti %>% 
+  filter(IDDEP==choix_dept) %>% group_by(lib_scot) %>% 
+  summarise(pop_tot = sum(pop17,na.rm=T),
+            art_tot = sum(nafart0919,na.rm=T)) %>% 
+  mutate(population=pop_tot/sum(pop_tot,na.rm=T),
+         artificialisation=art_tot/sum(art_tot,na.rm = T)) %>% 
+  select(lib_scot,population,artificialisation) %>% 
+  pivot_longer(cols = c("population","artificialisation"),names_to="type",values_to="part") %>% 
+  ggplot()+
+  aes(x=fct_reorder(lib_scot,part,sum),fill=type,y=part)+
+  geom_col(position = "dodge")+
+  geom_text(
+    aes(label = round(part * 100, digits = 0)),
+    vjust = 0.5,
+    hjust = 1.5,
+    size = 3,
+    color = "white",
+    position = position_dodge(width = 1)
+  )+
+  scale_y_continuous(labels = scales::percent)+
+  coord_flip()+
+  labs(x="",
+       y="Part en %",
+       title = "Quels sont les territoires qui participent le plus à l'artificialisation",
+       subtitle = "proportionnellement à leur poids démographique ?",
+       caption = "source : CEREMA, Traitement : DDTM 59")+
+  theme(legend.position = "bottom")+
+    guides(fill = guide_legend(title = "Type de poids"))+
+    theme_minimal()+
+  theme(plot.title = element_text(hjust = 1))+
+  theme(plot.subtitle = element_text(hjust = -4.5))
+
+```
+
+Cette figure nuance donc le classement précédent :
+
+- Bien que la MEL détienne la première place en matière d'artificialisation, celle-ci est à relativiser au regard de son poids démographique (49% de la population du département) ;
+- L'ensemble des autres SCoT artificialisent plus que leur poids démographiques. Certains plus que d'autres :
+  - La Flandres Intérieure, le Cambrésis et le Sambre-Avesnois connaissent le plus grand écart entre la part d'artificialisation et la part démographique (autour de 1,7) ;
+  - Les SCOT de Valenciennes, Flandres-Dunkerque ainsi que Douai ont un écart relatif plus faible. On peut en conclure en première approximation qu'ils artificialisent proportionnellement à leur poids démographique.
+
+#### Artificialisation cumulée communale
+
+Pour mieux appréhender les différences entre les SCoT, on peut observer l'artificialisation d'un point de vue statistique, afin de déceler les distributions de l'artificialisation communales au sein de ces derniers.
+
+Le graphique ci-dessous reprend donc l'artificialisation pour chaque commune de chaque SCOT entre 2009 et 2018 dans une boite à moustaches.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# artificialisation par scot en boxplot#########################################
+# artificialisation totale
+dcomdept_ref_ti %>% 
+  ggplot()+
+  aes(x = fct_reorder(lib_scot,nafart0919,median), y=nafart0919/10000, fill = lib_scot)+
+  geom_boxplot()+
+  theme_minimal()+
+  theme(legend.position = "none")+
+  labs(x = "",
+       y = "Ha artificialisés",
+       title = "Dynamique d'artificialisation communale des SCoT",
+       caption = "Années : 2009-2018, Source : CEREMA, Traitement : DDTM 59",
+       fill = "")+
+  coord_flip()
+
+```
+
+
+On constate tout d'abord un classement différent : **Bien que certains SCOT artificialisent plus que d'autres d'un point de vue cumulatif, la tendance à l'échelle communale pour ces mêmes SCOTs peut être différente.**
+
+C'est le cas par exemple du SCOT de Flandres Dunkerque qui possède une médiane supérieure à celle de la MEL et Valenciennes. Le SCOT du Sambre-Avesnois quant à lui connaît une situation inverse : bien qu'ayant beaucoup artificialisé de manière agrégé, il semble que la tendance communale soit plus basse que le reste des autres SCOT.
+
+La médiane communale par SCoT varie entre 8 Ha pour les Flandres-Dunkerque et 3 Ha pour le Sambre-Avesnois.
+
+```{r include=FALSE}
+dcomdept_ref_ti %>% 
+  # group_by(lib_scot) %>%
+  summarise(median(nafart0919,na.rm=T)/10000)
+```
+
+On peut également noter avec cette figure que les écarts en matière d'artificialisation communale sont élevés pour une majorité de SCOT. Seuls le Cambrésis et le Sambre-Avesnois ont un écart inter-quartile resserré. 
+
+Enfin, on observe que chaque SCoT sans exception dispose de communes sortant de sa boîte, et qui ont donc artificialisé beaucoup plus que la tendance.
+
+
+## Destination de l'artificialisation
+
+La première partie a permis de comprendre les enjeux et rapports de forces territoriaux au regard de l'artificialisation dans son acception générale. La base de données produite par le CEREMA permet de réaliser des distinctions plus fines de l'artificialisation en fonction de la destination des parcelles artificialisées. On retiendra les deux principales destination :
+
+- Les surfaces liées à l'activité économique,
+- Les surfaces liées à l'habitat.
+
+
+### Une diversité de dynamiques
+
+Avant d'observer les grandes tendances en matière de destination de l'artificialisation, il est intéressant de regarder quelles sont les grandes tendances des SCOT en matière d'évolution de l'emploi et des ménages. 
+
+On peut approximer au premier ordre que les ménages et les logements ont un lien avec l'artificialisation liée à l'habitat et sur le même principe que l'emploi et l'artificialisation liée à l'activité également.
+
+
+Le graphique ci-dessous reprend donc les évolutions en matières d'emplois et de ménages pour chaque SCoT du département. La taille des cercles est proportionnelle à la population de la commune.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}  
+# évolutions scociaux éco des communes 
+efficacite_artif_scot_etendue %>% 
+  as_tibble() %>% 
+  select(-geometry) %>% 
+  ggplot()+
+  geom_vline(xintercept=0,color="black")+
+  geom_hline(yintercept=0,color="black")+
+  aes(x=emp1217,y=men1217,color=lib_scot,size=pop,label=lib_scot)+
+  geom_point()+
+  geom_text_repel(aes(label=lib_scot),size=3,max.overlaps = 30)+
+  theme_minimal()+
+  theme(legend.position = "")+
+    labs(x = "Evolution des emplois entre 2012 et 2017",
+       y = "Evolution des ménages entre 2012 et 2017",
+       title = "Dynamiques socio-économiques du SCoT",
+       #subtitle = "",
+       caption = "Années : 2012-2017, Source : CEREMA, Traitement : DDTM 59",
+       fill = "")+
+  scale_y_continuous(labels = function(x) format(x, big.mark = " ", scientific = FALSE))+
+  scale_x_continuous(labels = function(x) format(x, big.mark = " ", scientific = FALSE))+
+  scale_size_continuous(guide = FALSE)+
+  guides(color = guide_legend(title = "",override.aes = aes(label = "")))
+
+  
+
+```
+
+
+On observe plusieurs points importants :
+
+- Tous les SCOT ont connu une hausse des ménages ;
+- La MEL a connu une très forte hausse des emplois ET des ménages ;
+- Le SCoT du Grand Douaisis a connue une relative hausse des emplois et des ménages ;
+- Le reste des SCOT a connu une dynamique uniquement résidentielle : baisse d'emplois et hausse des ménages.
+
+La figure suivante reprend ces mêmes données sous format géographique :
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# faire le meme triptyque mais avec emp et men
+tm_emp1217 <- efficacite_artif_scot_etendue %>% 
+  tm_shape()+
+    tm_borders(col="grey")+
+    tm_fill(col="emp1217", palette = "RdBu", title="Evolution de l'emploi \n 2012-17")+
+  tm_layout(frame = F)+
+  tm_text(text = "emp1217",size = 0.5)
+  
+tm_men1217 <- efficacite_artif_scot_etendue %>% 
+  tm_shape()+
+    tm_borders(col="grey")+
+    tm_fill(col="men1217", palette = "PuBu", title="Evolution des ménages \n 2012-17")+
+  tm_layout(frame = F)+
+  tm_text(text = "men1217",size = 0.5)+
+  tm_credits("Années : 2012-2017, \nSource : CEREMA,\nRetraitement : DDTM 59",position = c("left","bottom"),size = 0.4)
+
+tmap_arrange(tm_emp1217,tm_men1217)
+```
+
+### Répartition de l'artificialisation
+
+Une fois les éléments de contexte restitués, on peut observer les rapports de forces entre l'artificialisation dédiée à l'habitat et celle dédiée à l'activité.
+
+Le graphique suivant indique les surfaces artificialisées en matière d'habitat et d'activité pour les SCOT du département. 
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# répartition en stack par type d'atificialisation
+d2comdept_ti %>% 
+  filter(destination %in% c("Activité","Habitat")) %>% 
+  group_by(lib_scot,destination) %>% 
+  summarise(valeur = sum(valeur,na.rm=T)/10000) %>% 
+  ggplot()+
+  aes(x = fct_reorder(lib_scot,valeur,sum), y=valeur, fill = destination)+
+  geom_col(position = "stack")+
+  coord_flip() +
+ theme_minimal()+
+ theme(legend.position = "none")+
+  labs(x = "",
+      y = "Ha artificialisés",
+      title = "Artificialisation entre 2009 et 2018",
+      subtitle = "par grandes destinations",
+      caption = "Source : CEREMA, Traitement : DDTM 59",
+      fill = "")+
+  coord_flip() +
+  geom_text(aes(label = round(valeur,digits = 0)),position = position_stack(.5), vjust=0.5, size=3, color="white") +
+  guides(fill = guide_legend(title = "Destination"))+
+    scale_y_continuous(labels = function(x) format(x, big.mark = " ", scientific = FALSE))
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# répartition en fill par type d'atificialisation
+d2comdept_ti %>% 
+  filter(destination %in% c("Activité","Habitat")) %>% 
+  group_by(lib_scot,destination) %>% 
+  summarise(valeur = sum(valeur,na.rm=T)/10000) %>% 
+  ggplot()+
+  aes(x = fct_reorder(lib_scot,valeur,sum), weight=valeur, fill = destination,
+      label=percent(after_stat(prop), accuracy = 1)) +
+  geom_bar(position = "fill") +
+  geom_text(aes(by = as.factor(lib_scot)),
+              stat="prop",
+              position = position_fill(.5),
+              size=3,
+              color="white")+
+  theme_minimal()+
+  theme(legend.position = "none")+
+  coord_flip()+
+  theme_minimal()+
+  theme(legend.position = "none")+
+  labs(x = "",
+       y = "",
+       title = "Répartition de l'artificialisation entre 2009 et 2018",
+       caption = "Source : CEREMA, Traitement : DDTM 59",
+       fill = "")+
+  coord_flip() +
+  #geom_text(aes(label = round(valeur,digits = 0)),position = position_stack(.5), vjust=0.5, size=3, color="white") +
+  guides(fill = guide_legend(title = "Destination"))+
+  scale_y_continuous(labels = scales::percent)
+
+```
+
+- On peut noter que la très grande majorité des SCOT a artificialisé beaucoup plus pour l'habitat que pour l'activité l'exception du Douaisis ;
+- La MEL a artificialisé environ deux fois plus que les autres SCOT en matière d'activité ;
+- La MEL a artificialisé approximativement autant de surfaces liées à l'activité que ce que les autres SCOT ont artificialisé à destination de l'habitat (~500 Ha) ;
+- Le Sambre-Avesnois, les Flandres-Dunkerque et Valenciennes ont artificialisé dans les mêmes ordres de grandeurs à la fois en surface et en proportion en matière d'activité et d'habitat.
+
+
+### Représentation spatiale des dynamiques d'artificialisation
+
+Les cartes suivantes illustrent les mêmes données sous forme géographique et permettent de mieux percevoir les tendances générales.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+
+
+# création de 3 cartes l'un à côté de l'autre sur l'artificialisaiton à l'échelle des scot
+# possibilité de changer la maille en changeant le group_by de efficacité_artif_scot_etendue
+
+tm_art <-  d2comdept_sf %>% 
+  # filter(destination %in% c("Activité")) %>% 
+  group_by(lib_scot) %>% 
+  summarise(valeur = round(sum(valeur,na.rm=T)/10000),digits=0) %>% 
+  tm_shape() +
+  tm_borders(col = "grey") +
+  tm_fill(col = "valeur",
+          palette = "Blues",
+          title = "Artificialisation \ntotale") +
+  tm_layout(frame = F) +
+  tm_text(text = "valeur", size = 0.5) +
+  tm_credits(
+    "Années : 2009-2018, \nSource : CEREMA,\nRetraitement : DDTM 59",
+    position = c("left", "bottom"),
+    size = 0.4
+  )
+
+tm_art_act <- d2comdept_sf %>% 
+  filter(destination %in% c("Activité")) %>% 
+  group_by(lib_scot,destination) %>% 
+  summarise(valeur = round(sum(valeur,na.rm=T)/10000),digits=0) %>% 
+  tm_shape() +
+  tm_borders(col = "grey") +
+  tm_fill(col = "valeur",
+          palette = "Blues",
+          title = "Artificialisation \nliée à l'activité") +
+  tm_layout(frame = F) +
+  tm_text(text = "valeur", size = 0.5) +
+  tm_credits(
+    "Années : 2009-2018, \nSource : CEREMA,\nRetraitement : DDTM 59",
+    position = c("left", "bottom"),
+    size = 0.4
+  )
+
+tm_art_hab <-  d2comdept_sf %>% 
+  filter(destination %in% c("Habitat")) %>% 
+  group_by(lib_scot,destination) %>% 
+  summarise(valeur = round(sum(valeur,na.rm=T)/10000),digits=0) %>% 
+  tm_shape() +
+  tm_borders(col = "grey") +
+  tm_fill(col = "valeur",
+          palette = "Blues",
+          title = "Artificialisation \nliée à l'habitat") +
+  tm_layout(frame = F) +
+  tm_text(text = "valeur", size = 0.5) +
+  tm_credits(
+    "Années : 2009-2018, \nSource : CEREMA,\nRetraitement : DDTM 59",
+    position = c("left", "bottom"),
+    size = 0.4
+  )
+
+tmap_arrange(tm_art, tm_art_hab, tm_art_act, nrow = 1)
+
+# d2comdept_sf %>% 
+#   filter(destination %in% c("Activité")) %>% 
+#   group_by(lib_scot,destination) %>% 
+#   summarise(valeur = round(sum(valeur,na.rm=T)/10000),digits=0) %>% 
+#   tm_shape() +
+#   tm_borders(col = "grey") +
+#   tm_fill(col = "valeur",
+#           palette = "Blues",
+#           title = "Artificialisation \nliée à l'habitat") +
+#   tm_layout(frame = F) +
+#   tm_text(text = "valeur", size = 0.5) +
+#   tm_credits(
+#     "Années : 2009-2018, \nSource : CEREMA,\nRetraitement : DDTM 59",
+#     position = c("left", "bottom"),
+#     size = 0.4
+#   )
+```
+
+Ces cartographies permettent de mettre en avant les points suivants :
+
+- Concernant l'habitat : on constate une dichotomie dans le Sud du département. L'Est a artificialisé environ 2 fois plus que l'Ouest en matière d'habitat ;
+- Concernant l'activité : on note une polarisation de l'artificialisation liée à l'activité sur le territoire de la MEL et une certaine homogénéité sur le reste du département à l'exception des Flandres-intérieures.
+
+
+### Proportionnellement aux nombres d'emplois par SCOT
+
+
+Comme réalisé pour la population, il est possible d'observer le poids relatif de chaque SCoT en matière d'emplois au regard de son poids dans l'artificialisation liée à l'activité.
+
+Le diagramme ci-dessous permet de mettre en avant cette analyse et fait ressortir les SCoT qui ont un rôle particulier dans cette répartition.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+dcomdept_ref_ti %>% 
+  filter(IDDEP==choix_dept) %>% 
+  group_by(lib_scot) %>% 
+  summarise(emp_tot = sum(emp17,na.rm=T),
+            art_act_tot = sum(artact0919,na.rm=T)) %>% 
+  mutate(emplois=emp_tot/sum(emp_tot,na.rm=T),
+         artificialisation=art_act_tot/sum(art_act_tot,na.rm = T)) %>% 
+  select(lib_scot,emplois,artificialisation) %>% 
+  pivot_longer(cols = c("emplois","artificialisation"),names_to="type",values_to="part") %>% 
+  ggplot()+
+  aes(x=fct_reorder(lib_scot,part,sum),fill=type,y=part)+
+  geom_col(position = "dodge")+
+  geom_text(
+    aes(label = round(part * 100, digits = 0)),
+    vjust = 0.5,
+    hjust = 1.5,
+    size = 3,
+    color = "white",
+    position = position_dodge(width = 1)
+  )+
+  scale_y_continuous(labels = scales::percent)+
+  coord_flip()+
+  labs(x="",
+       y="Part en %",
+       title = "Quels sont les territoires qui participent le plus à l'artificialisation",
+       subtitle = "proportionnellement à leur poids en emplois ?",
+       caption = "source : CEREMA, Traitement : DDTM 59")+
+  theme(legend.position = "bottom")+
+    guides(fill = guide_legend(title = "Type de poids"))+
+    theme_minimal()+
+  theme(plot.title = element_text(hjust = 1))+
+  theme(plot.subtitle = element_text(hjust = -2.5))
+
+```
+
+
+On retrouve les mêmes dynamiques que pour la population à savoir :
+
+- La MEL représente plus de la majorité des emplois du Nord pour moins de 30% de l'artificialisation ;
+- La majorité des SCOT à l'exception de Flandres-Dunkerque et Valenciennes artificialise de l'ordre de deux fois leur poids en matière d'emplois.
+
+
+### Proportionnellement aux nombres de ménages par SCOT
+
+On peut de nouveau réaliser cette analyse, mais au regard cette fois-ci des poids relatifs en termes de ménages et d'artificialisation liée à l'activité.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+dcomdept_ref_ti %>% 
+  filter(IDDEP==choix_dept) %>% group_by(lib_scot) %>% 
+  summarise(men_tot = sum(men17,na.rm=T),
+            art_hab_tot = sum(arthab0919,na.rm=T)) %>% 
+  mutate(ménages=men_tot/sum(men_tot,na.rm=T),
+         artificialisation=art_hab_tot/sum(art_hab_tot,na.rm = T)) %>% 
+  select(lib_scot,ménages,artificialisation) %>% 
+  pivot_longer(cols = c("ménages","artificialisation"),names_to="type",values_to="part") %>% 
+  ggplot()+
+  aes(x=fct_reorder(lib_scot,part,sum),fill=type,y=part)+
+  geom_col(position = "dodge")+
+  geom_text(
+    aes(label = round(part * 100, digits = 0)),
+    vjust = 0.5,
+    hjust = 1.5,
+    size = 3,
+    color = "white",
+    position = position_dodge(width = 1)
+  )+
+  scale_y_continuous(labels = scales::percent)+
+  coord_flip()+
+  labs(x="",
+       y="Part en %",
+       title = "Quels sont les territoires qui participent le plus à l'artificialisation",
+       subtitle = "proportionnellement à leur poids en ménages ?",
+       caption = "source : CEREMA, Traitement : DDTM 59")+
+  theme(legend.position = "bottom")+
+    guides(fill = guide_legend(title = "Type de poids"))+
+    theme_minimal()+
+  theme(plot.title = element_text(hjust = 1))+
+  theme(plot.subtitle = element_text(hjust = -3))
+
+```
+
+
+Les dynamiques en matière de ménages sont différentes des dynamiques en matière de population et d'emplois :
+
+- On note toujours la place particulière de la MEL, avec près de la moitié des ménages pour un quart de l'artificialisation ;
+- Les SCoT du bassin minier ont un ratio entre artificialisation liée à l'habitat et part des ménages plus proche de un que les autres SCOT ;
+- Les Flandres Intérieures artificialisent deux fois plus que leur poids en matière de ménages.
+
+
+### Dynamique temporelle
+
+De la même manière que pour les départements, il est intéressant d’analyser les dynamiques d’artificialisation en fonction du temps.
+
+Les deux illustrations ci-dessous reprennent à nouveau les évolutions par type de destination, soit en représentant le flux annuel, soit en représentant les surfaces cumulées sur la décennie.
+
+
+
+#### Évolution du flux annuel d'artificialisation des SCoT
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# évolutions annuelles
+d2comdept_ti %>% 
+  filter(destination %in% c("Activité","Habitat")) %>% 
+  group_by(lib_scot,destination,annee=year(annee1)) %>% 
+  summarise(valeur = sum(valeur,na.rm=T)) %>% 
+  ggplot()+
+  aes(x = annee, y=valeur/10000, color = destination)+
+  geom_line()+
+  facet_wrap(vars(lib_scot)) +
+    labs(x = "",
+      y = "Ha artificialisés",
+      title = "Artificialisation entre 2009 et 2018",
+      subtitle = "pour les SCoT du département",
+      caption = "Source : CEREMA, Traitement : DDTM 59",
+      fill = "")+
+ theme_minimal()+
+ theme(legend.position = "bottom")+
+  guides(color = guide_legend(title = "Destination")) +
+  theme(axis.text = element_text(size = 8))+
+  scale_y_continuous(labels = function(x) format(x, big.mark = " ", scientific = FALSE))
+
+# d2comdept_ti %>% 
+#   filter(destination %in% c("Activité","Habitat")) %>%
+#   group_by(lib_scot,destination,annee=year(annee1)) %>%
+#   filter(annee %in% c(2009,2018)) %>% 
+#   summarise(valeur = sum(valeur,na.rm=T)/10000) %>% 
+#   pivot_wider(names_from = annee,values_from = valeur) %>% 
+#   rename(A2009=`2009`,A2018=`2018`) %>% 
+#   mutate(evolution = percent((A2018-A2009)/A2009))
+```
+
+
+On observe une tendance générale à la baisse pour l'ensemble des SCOT, avec quelques différences notables concernant le Sambre-Avesnois et le Grand Douaisis pour lesquels le rythme en matière d'artificialisation liée à l'activité (et d'habitat pour Douai) ne semble pas diminuer.
+
+
+
+#### Évolution annuelle de l'artificialisation cumulée des SCoT
+
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# évolutions annuelles cumulées
+d2comdept_ti %>% 
+  filter(destination %in% c("Activité","Habitat")) %>% 
+  group_by(lib_scot,destination,annee=year(annee1)) %>% 
+  summarise(valeur = sum(valeur,na.rm=T)) %>% 
+  mutate(valeur=cumsum(valeur)) %>% 
+  ggplot()+
+  aes(x = annee, y=valeur/10000, color = destination)+
+  geom_line()+
+  facet_wrap(vars(lib_scot)) +
+ theme_minimal()+
+ theme(legend.position = "none")+
+      labs(x = "",
+      y = "Ha artificialisés",
+      title = "Artificialisation cumulée entre 2009 et 2018",
+      subtitle = "pour les SCoT du département",
+      caption = "Source : CEREMA, Traitement : DDTM 59",
+      fill = "")+
+ theme_minimal()+
+ theme(legend.position = "bottom")+
+  guides(color = guide_legend(title = "Destination")) +
+  theme(axis.text = element_text(size = 8))+
+  scale_y_continuous(labels = function(x) format(x, big.mark = " ", scientific = FALSE))
+```
+
+
+Encore une fois, la diminution du flux n'entraîne pas la diminution du stock.
+On observe une divergence entre Habitat et Activité pour l'ensemble des SCOT, mais plus particulièrement pour les SCOT du Sambre-Avesnois et de la MEL. Dit autrement, plus le temps passe, plus la part de l'artificialisation liée à l'habitat progresse.
+
+Ces tendances à l'échelles des SCoT sont toutefois simplificatrices des dynamiques ayant lieu à une échelle plus fine comme l'analyse le reste du document.
+
+
+## Efficacité de l'artificialisation
+
+Les différentes analyses réalisées jusqu'à présent mettaient en avant la relation entre la part de l'emploi ou des ménages et la part d'artificialisation. Ces rapports de forces permettent en effet de dégager des grandes tendances ou bien même des cas particuliers.
+
+On peut pousser le raisonnement plus loin en regardant le lien entre l'évolution de l'emploi ou des ménages et l'artificialisation respectivement liée à l'activité ou l'habitat sur cette même période.
+
+*Les données utilisées dans ces parties sont restreints à la période 2012-2017.*
+
+### Pour l'activité
+
+Le graphique ci-dessous représente de nouveaux les SCOT avec cette fois ci, en abscisse, la surface consommée à destination de l’emploi et en ordonnée, les évolutions de l’emploi.
+
+Un SCOT ayant gagné des emplois et artificialisé se trouvera alors au-dessus de l’axe des abscisses, comme le SCOT du Grand-Douaisis. À l’inverse, un SCOT ayant perdu des emplois et artificialisé se trouvera sous cet axe. Plus le SCOT se trouve en bas et à droite, plus il a artificialisé ET perdu des emplois.
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# représentation des évolutions entre artif typée et évolution de l'indicateur d'artif typée à l'échelle du scot
+dcomdept_ref_ti %>% 
+  group_by(lib_scot) %>% 
+  summarise(artact1217 = sum(artact1217,na.rm=T)/10000,
+         emp1217=sum(emp1217,na.rm=T),
+         emp17=sum(emp17,na.rm=T)) %>% 
+  ggplot()+
+  aes(x = artact1217, y=emp1217, size=emp17, color=lib_scot)+
+  geom_point()+
+  theme_minimal()+
+  theme(legend.position = "none")+
+  geom_text_repel(aes(label=lib_scot),size=3)+
+  geom_vline(xintercept=0,color="black")+
+  geom_hline(yintercept=0,color="black")+
+  geom_rug(size=0.5)+
+  labs(x = "Ha artificialisés à destination de l'activité",
+       y = "Evolution des emplois",
+       title = "Efficacité de l'artificialisation liée à l'activité",
+       caption = "Années : 2012-2017, Source : CEREMA, Traitement : DDTM 59")+
+  scale_y_continuous(labels = function(x) format(x, big.mark = " ", scientific = FALSE))
+```
+
+Ce graphique illustre les points suivants :
+
+- Seules 2 SCOT ont gagné des emplois ;
+- Pour une même artificialisation, on trouve des dynamiques totalement différentes d'évolution de l'emploi (Valenciennes/Douai, Cambrai/Avesnes-sur-Helpe).
+
+Comme déjà détaillé au début de cette partie, on peut calculer un ratio que l'on appelle efficacité de l'artificialisation pour l'activité. Ce ratio permet de mesurer le rapport entre l'évolution des emplois et l'évolution de l'artificialisation sur la même période. Il a donc pour unité : *emplois par Ha artificialisé*.
+
+Il est bien entendu évident qu'il n'y a pas un lien direct et unique entre l'artificialisation liée à l'activité et les emplois. De nombreux facteurs peuvent expliquer partiellement ce phénomène. Toutefois, cet indicateur est tout de même pertinent, car il met en avant un élément souvent présent dans les projets d'aménagement publics : créer ou développer des zones d'activités, pour créer de l'emploi sur le territoire. De manière plus générale, la démarche d'artificialisation a toujours un objectif intrinsèque.
+
+Bien que réducteur, cet indicateur donne tout de même une certaine idée de la dynamique territoriale en la matière.
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+efficacite_artif %>% ggplot()+
+  aes(x=fct_reorder(lib_scot,emphaact,sum),y=emphaact, fill=lib_scot)+
+  geom_col() +
+  theme_minimal()+
+  theme(legend.position = "none")+
+  geom_text(aes(label = round(emphaact,digits = 0)),
+            position = position_stack(0.95),
+            vjust=0, size=3, color="black")+
+  labs(x = "",
+       y = "Emplois par Ha artificialisé",
+       title = "Efficacité de l'artificialisation liée à l'activité",
+       caption = "Années : 2012-2017, Source : CEREMA, Traitement : DDTM 59")+
+  theme(axis.text = element_text(size = 8),
+       # axis.text.x = element_text(angle=45, hjust=1)
+       )+
+  coord_flip()
+
+
+
+```
+
+
+Les constats que l'on peut faire suite à ce graphique rejoignent ceux du précédent. À la différence du diagramme précédent, on peut cette fois-ci quantifier les écarts entre les territoires.
+
+On note que pour chaque hectare artificialisé, la MEL a créée 38 emplois supplémentaires. À l'opposé, le SCOT du Sambre-Avesnois a perdu 33 emplois pour chaque hectare artificialisé. On note toutefois que la très grande majorité des SCOT ont une efficacité négative située autour de -20 emplois par hectare.
+
+
+### Pour l'habitat
+
+On peut de nouveau réaliser l'analyse au regard du prisme habitat. Le graphique ci-dessous représente de nouveaux les SCOT avec cette fois ci, en abscisse, la surface consommée à destination de l’habitat et en ordonnée, les évolutions des ménages.
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+dcomdept_ref_ti %>% 
+  group_by(lib_scot) %>% 
+  summarise(arthab1217 = sum(arthab1217,na.rm=T)/10000,
+            men1217=sum(men1217,na.rm=T),
+            men17=sum(men17,na.rm=T)) %>% 
+  ggplot()+
+  aes(x = arthab1217, y=men1217, size=men17, color=lib_scot)+
+  geom_point()+
+  geom_text_repel(aes(label=lib_scot),size=3) +
+  theme_minimal()+
+  theme(legend.position = "none")+
+  geom_vline(xintercept=0,color="black")+
+  geom_hline(yintercept=0,color="black")+
+  geom_rug(size=0.5)+
+  labs(x = "Ha artificialisés à destination de l'habitat",
+       y = "Evolution des ménages",
+       title = "Efficacité de l'artificialisation liée à l'habitat",
+       caption = "Années : 2012-2017, Source : CEREMA, Traitement : DDTM 59")+
+  scale_y_continuous(labels = function(x) format(x, big.mark = " ", scientific = FALSE))
+```
+
+Encore une fois ce graphique met en lumière la particularité de la MEL, avec près de 500 Ha consommés à destination de l'habitat et plus de 20 000 nouveaux ménages.
+
+On observe également que le Sambre-Avesnois a artificialisé deux fois plus que le Cambrésis pour un gain semblable de ménages.
+
+On note également que les deux SCOT des Flandres suivent la même tendance.
+
+Le graphique suivant reprenant le ratio d'efficacité d'artificialisation liée à l'habitat permet de mieux quantifier ce phénomène.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+efficacite_artif %>% 
+  ggplot()+
+  aes(x=fct_reorder(lib_scot,menhahab,sum),y=menhahab, fill=lib_scot)+
+  geom_col() +
+  theme_minimal()+
+  theme(legend.position = "none")+
+  geom_text(aes(label = round(menhahab,digits = 0)),
+            # position = position_stack(0.9),
+            hjust=1.5, size=3, color="white")+
+  labs(x = "",
+       y = "Ménages par Ha artificialisé",
+       title = "Efficacité de l'artificialisation liée à l'habitat",
+       caption = "Années : 2012-2017, Source : CEREMA, Traitement : DDTM 59")+
+  coord_flip()
+  # theme(axis.text = element_text(size = 8),
+  #      axis.text.x = element_text(angle=45, hjust=1))
+```
+
+À l'exception de la MEL et du Sambre-Avesnois, on remarque une certaine homogénéité dans les efficacités au sein des SCOT aux environ d'une dizaine de ménages par hectare artificialisés.
+*Pour rappel, un lotissement pavillonnaire se situe aux alentours de 20 logements/Ha.*
+
+
+### Dynamique de l'efficacité de l'artificialisation 
+
+Une fois ces deux ratios d'efficacité d'artificialisation calculés, on peut les représenter selon la méthode employée depuis le début du rapport : en abscisses, l'efficacité liée l'activité, en ordonnées, celle liée à l'habitat.
+
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# répartition en scatter plot des scot par efficacité d'artificisation
+efficacite_artif %>% 
+  ggplot()+
+  aes(x=emphaact, y=menhahab, color=lib_scot, size=pop)+
+  geom_point()+
+  geom_text_repel(aes(label=lib_scot),size=3) +
+  geom_vline(xintercept=0,color="black")+
+  geom_hline(yintercept=0,color="black")+
+  geom_rug(size=0.5)+
+  theme_minimal()+
+  theme(legend.position = "none")+
+  labs(x = "Ha artificialisés à destination de l'activité",
+       y = "Ha artificialisés à destination de l'habitat",
+       title = "Efficacité de l'artificialisation",
+       caption = "Années : 2012-2017, Source : CEREMA, Traitement : DDTM 59")
+```
+
+On constate que seuls deux territoires ont une efficacité positive sur les deux volets :
+
+- le SCoT du Grand Douaisis ;
+- Le SCoT de la MEL.
+
+L'ensemble des SCoT a une efficacité positive en matière d'habitat, mais a une dynamique en termes d'activité très hétérogène.
+
+On observe une corrélation entre efficacité liée à l'activité et l'habitat : **Plus un territoire a un taux d'efficacité important en matière d'activité, plus sont taux en matière d'habitat le sera également et inversement.**
+
+\newpage
+
+# À l'échelle des communes des SCoT
+
+## Typologie de l'artificialisation des communes
+
+Les parties suivantes du document aborderont les SCOT séparément, afin de comprendre les dynamiques internes au sein de ces derniers.
+
+Avant de traiter cette partie, il est intéressant d'observer les dynamiques communales à l'échelle du département afin de percevoir les grandes tendances et rapports de forces.
+
+Le graphique suivant reprend les répartitions entre artificialisation liée à l'activité et l'habitat mais cette fois-ci à la maille communale.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# répartition en scatter plot des scot par type d'artificisation
+dcomdept_ref_ti %>% 
+  ggplot()+
+  aes(x=artact0919/10000, y=arthab0919/10000, color=lib_scot, size=pop17)+
+  geom_point()+
+  geom_text_repel(aes(label=IDCOMTXT),size=3)+
+  theme_minimal()+
+  theme(legend.position = "bottom")+
+  scale_size_continuous(guide = FALSE)+
+  guides(color = guide_legend(title = "",override.aes = aes(label = "")))+
+  labs(x = "Ha artificialisé pour l'activité",
+       y = "Ha artificialisé pour l'habitat",
+       title = "Typologie de l'artificialisation des communes",
+       caption = "Années : 2009-2018, Source : CEREMA, Traitement : DDTM 59",
+       fill = "")+
+  geom_abline(slope=1, intercept=0, color = "grey")
+
+  
+```
+
+
+Au regard du nombre de points de la figure, il n'est bien entendu pas possible de réaliser une analyse exhaustive. On peut toutefois observer quelques points intéressants :
+
+- Un majorité des communes a artificialisé moins de 10 Ha à destination de l'habitat et/ou de l'activité ;
+- Chaque SCOT dispose de quelques communes se distinguant dans un des deux volets avec une artificialisation dans une des deux destinations très importante ;
+- La taille de la commune et la surface artificialisée ne semblent pas être corrélées. On observe de nombreuses communes relativement peu peuplées avec une surface artificialisée importante.
+
+## Regroupement des communes ayant des dynamiques similaires
+
+En utilisant une technique très répandue de machine learning (k-means), il est possible de regrouper les communes ayant des similarités en matière de comportement d'artificialisation.
+
+
+#### Méthodologie
+
+
+Le clustering est une méthode de classification non supervisée. Autrement dit, les classes des partitions ne sont pas prédéfinies, c’est-à-dire non inclues dans le jeu de données d’origine.
+
+Cet algorithme va définir un critère de similitude entre les communes, basé sur des variables. Ensuite, ce calcul va créer un nombre k de classes au sein desquelles les communes sont le plus semblables possible, tout en maximisant la dissimilitude entre les classes. On cherche ainsi à rendre les classes les plus compacts possible, tout en étant les plus séparées possible.
+
+#### Mise en oeuvre pratique
+
+
+En ne sélectionnant que les données liées à l'artificialisation liée à l'activité et à l'habitat, on forme 3 clusters[^6].
+
+[^6]: La méthode dite du "coude" permet d'obtenir le nombre de clusters optimal, dans ce cas entre 2 et 3. *La mise en œuvre de cette méthode est disponible dans le code source du document.*
+
+```{r eval=FALSE, include=FALSE}
+# détermination du volume via boucle
+
+ratio_ss <- data.frame(cluster = seq(from = 1, to = 9, by = 1)) 
+for (k in 1:9) {
+km_model <- dcomdept_ref_ti %>%
+  select(artact0919,arthab0919,emp17,emp1217,men17,men1217) %>% #Il ne faut pas de variables txt, que les data
+  na.omit() %>% 
+  kmeans(centers = k,nstart = 20)
+ratio_ss$ratio[k] <- km_model$tot.withinss / km_model$totss
+}
+
+ggplot(ratio_ss, aes(cluster, ratio)) + 
+geom_line() +
+geom_point()
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# mise en œuvre du k-mean
+
+kmmodel <- dcomdept_ref_ti %>%
+  select(artact0919,arthab0919,emp17,emp1217,men17,men1217) %>% #Il ne faut pas de variables txt, que les data
+  na.omit() %>% 
+  kmeans(centers = 3,nstart = 20)
+
+dcomdept_ref_ti$cluster <- kmmodel$cluster
+
+dcomdept_ref_ti%>% 
+  ggplot()+
+  aes(x=artact0919/10000,
+      y=arthab0919/10000, 
+      color=factor(cluster),
+      alpha=0.8, size=pop17)+
+  geom_point()+
+  geom_text_repel(aes(label=IDCOMTXT),size=3)+
+  theme_minimal()+
+  theme(legend.position = "none")+
+  theme(legend.direction = "horizontal") +
+  labs(x = "Ha artificialisé pour l'activité",
+       y = "Ha artificialisé pour l'habitat",
+       title = "Rapports de forces des destinations de l'artificialisation",
+       caption = "Années : 2009-2018, Source : CEREMA, Traitement : DDTM 59",
+       fill = "")+
+  scale_color_brewer(palette = "Set1")+
+  geom_abline(slope=1, intercept=0, color = "grey")
+```
+
+L'algorithme a mis en évidence 3 classes de communes qui semblent plutôt instinctives :
+
+- 1 : Les communes ayant plutôt une spécialisation liée à l'habitat en bleu ;
+- 2 : Les communes ayant plutôt une spécialisation liée à l'activité en rouge;
+- 3 : Les communes ayant peu artificialisé en vert.
+
+On peut cartographier ces communes afin de mieux visualiser les liens géographiques les reliant.
+
+### Cartographie des communes
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+dcomdept_ref_ti%>%   # ne pas déplacer sans le chunck du dessus, car il créée le cluster
+  left_join(fr %>% filter(IDDEP=="59"),.,by=c("IDCOM")) %>% 
+  mutate(artif=nafart0919/10000) %>% 
+  tm_shape()+
+  tm_bubbles(size="artif",
+             col = "cluster",
+             alpha=0.5,
+             palette=get_brewer_pal("Set1",plot = F,n = 3),
+             labels=c("Spécialisation activité","Spécialisation habitat","Artificialisation faible"),
+             title.col="Type de communes",
+             title.size="Artificialisation",
+             )+
+  tm_layout(main.title = "Artificialisation par type de dynamique",
+            frame = F,
+            legend.position = c("left","bottom"))+
+  dcomdept_ref_sf %>% group_by(lib_scot) %>% summarise() %>% 
+  tm_shape()+
+  tm_borders()+
+  tm_credits("Années : 2009-2018, \nSource : CEREMA,\nRetraitement : DDTM 59",position = c("left","bottom"),size = 0.4)
+```
+
+Cette cartographie met en avant plusieurs points :
+
+- Très peu de communes du Sud du département ne se retrouvent dans la catégorie "spécialisation habitat" ;
+- Les communes les plus peuplées du département et leurs communes voisines sont le plus souvent catégorisées dans la "spécialisation activité" ;
+- L'Est des Flandres, le Valenciennois ainsi qu'une partie de la MEL (Sud) connaissent une spécialisation liée à l'habitat.
+
+
+## Rapports de forces
+
+### Distribution des communes
+
+Enfin, pour terminer cette première partie, on peut essayer de caractériser à l'échelle du département, les communes qui participent le plus à l'artificialisation. 
+
+
+
+```{r include=FALSE}
+nb_communes_centile <- dcomdept_ref_ti %>% 
+  summarise(n=n()/20) %>%
+  pull(n) %>%
+  round(digits=0)
+```
+
+Le territoire a été découpé en groupe (quantiles) de `r nb_communes_centile` communes, soit (1/20 du total de communes) en fonction de la superficie artificialisée durant la période 2009-2018. On peut ensuite tracer le diagramme ci-dessous représentant la part de la surface artificialisée pour chaque quantile.
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+dcomdept_ref_ti %>% 
+  mutate(centile = ntile(dcomdept_ref_ti$nafart0919,20)) %>% 
+  select(centile,nafart0919) %>% 
+  arrange(desc(centile)) %>% 
+  group_by(centile) %>% 
+  summarise(artif=sum(nafart0919/10000,na.rm=T)) %>% 
+  ungroup() %>% 
+  mutate(r_artif=artif/sum(artif,na.rm=T)*100) %>% 
+  ggplot()+
+  aes(x=centile/0.2,y=r_artif)+
+  geom_col()+
+      geom_text(aes(label = round(r_artif,digits = 1)),
+                #position = position_stack(0.95),
+                vjust=1,
+                size=3,
+                color="white")+
+  theme_minimal()+
+  theme(legend.position = "none")+
+  labs(x = "Quantiles des communes",
+       y = "% de la surface totale artificialisée",
+       title = "Distribution des communes",
+       subtitle = "en fonction de leur contribution à l'artifcialisation totale",
+       caption = "Années : 2009-2018, Source : CEREMA, Traitement : DDTM 59",
+       fill = "")
+```
+
+
+
+```{r include=FALSE}
+centile1920 <- dcomdept_ref_ti %>% 
+  mutate(centile = ntile(dcomdept_ref_ti$nafart0919,20)) %>% 
+  select(centile,nafart0919) %>% 
+  arrange(desc(centile)) %>% 
+  group_by(centile) %>% 
+  summarise(artif=sum(nafart0919/10000,na.rm=T)) %>% 
+  ungroup() %>% 
+  mutate(r_artif=artif/sum(artif,na.rm=T)*100) %>% 
+  filter(centile>18) %>% 
+  summarise(v = sum(r_artif)) %>% 
+  pull(v) %>% 
+  round(digits=0)
+```
+
+```{r include=FALSE}
+tot_artif <- dcomdept_ref_ti %>% summarise(v=sum(nafart0919/10000,na.rm=T)) %>% pull(v) %>% round(digits=0)
+```
+
+
+
+On note ainsi que 10% des communes (soit `r 2*nb_communes_centile`) ont artificialisé près de `r centile1920`% des espaces naturels, agricoles et forestiers consommés (`r tot_artif` Ha) ces 10 dernières années sur le territoire. 
+
+Le tableau suivant reprend la liste de ces communes :
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+tab_top1920 <- dcomdept_ref_ti %>%
+  mutate(centile = ntile(dcomdept_ref_ti$nafart0919, 20)) %>%
+  select(EPCI20TXT, IDCOMTXT, nafart0919, centile) %>%
+  mutate(artif = round(nafart0919 / 10000, digits = 0)) %>%
+  mutate(r_artif = round(artif / sum(artif, na.rm = T) * 100, digits = 1)) %>%
+  arrange(desc(r_artif)) %>%
+  filter(centile > 19) %>%
+  select(-nafart0919, -centile)
+
+names(tab_top1920) <- c("EPCI", "Commune", "Ha artificialisés", "Part du SCoT")
+tab_top1920 %>% tableau() 
+```
+
+### Répartition des communes en fonction de leur artificialisation
+
+Le graphique ci-dessous appelé *fonction de répartition empirique* permet de connaître pour un seuil désiré, le pourcentage de communes se trouvant de chaque côté de ce seuil. On peut par exemple noter que 75% des communes ont artificialisé moins de 10 Ha sur la période 2009-2018.
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+dcomdept_ref_ti %>% 
+  ggplot()+
+  aes(x=nafart0919/10000)+
+  stat_ecdf(geom = "step")+
+  theme_minimal()+
+  theme(legend.position = "none")+
+  labs(x = "Ha artificialisés par commune",
+       y = "% des communes",
+       title = "Répartition des communes en fonction de leur artificialisation",
+       caption = "Source : CEREMA, Traitement : DDTM 59",
+       fill = "")+
+         geom_vline(xintercept=10,color="grey")+
+         geom_hline(yintercept=0.75,color="grey")+
+  scale_y_continuous(labels = scales::percent)
+
+```
+
+\newpage
+
+# Tableau synthétisant les principales valeurs
+
+Le tableau suivant reprend une grande partie des indicateurs présentés dans cette partie. 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+elt_tab <- function(x) {  
+  summarise(x,
+            'Population en 2017' = sum(pop17, na.rm = T),
+            'Evolution pop 2012-2017' = sum(pop1217, na.rm = T),
+            'Evolution pop en %' = round((sum(pop17, na.rm = T) - sum(pop12, na.rm = T)) / sum(pop17,na.rm = T) * 100, digits = 1),
+            'Menages en 2017' = sum(men17, na.rm = T),
+            'Evolution men 2012-2017' = sum(men1217, na.rm = T),
+            'Evolution men en %' = round((sum(men17, na.rm = T) - sum(men12, na.rm = T)) / sum(men17,na.rm = T) * 100, digits = 1),
+            
+            'Emplois en 2017' = sum(emp17, na.rm = T),
+            'Evolution emp 2012-2017' = sum(emp1217, na.rm = T),
+            'Evolution emp en %' = round((sum(emp17, na.rm = T) - sum(emp12, na.rm = T)) / sum(emp17,na.rm = T) * 100, digits = 1),
+            
+            'Artificielle en Ha (CLC 2018)' = round(sum(partart18/ 10000, na.rm = T), digits = 0),
+            'Artificielle en % (CLC 2018)' = round(100* sum(partart18, na.rm = T) / sum(surfcom20, na.rm = T), digits = 0 ),
+            
+            'Artificialisée entre 2009 et 2018 en Ha' = round(sum(nafart0919 / 10000, na.rm = T), digits = 0),
+            "Liee à l'habitat" = round(sum(arthab0919 / 10000, na.rm = T), digits = 0),
+            "Liee à l'activité" = round(sum(artact0919 / 10000, na.rm = T), digits = 0),
+            
+            'Artificialisée entre 2012 et 2017 en Ha' = round(sum(nafart1217 / 10000, na.rm = T), digits = 0),
+            'Artificialisée entre 2012 et 2017 en Ha (CLC)' = round(sum(partart18-partart12,na.rm=T)/10000,digits=0),
+            'Artificialisée entre 2012 et 2017 en % par rapport à 2012 (CLC)' = round( `Artificialisée entre 2012 et 2017 en Ha`/ sum(partart12/10000,na.rm = T)* 100, digits = 1 )
+
+  ) %>%
+    arrange(desc(`Population en 2017`)) 
+}
+
+
+
+ref_scot <- dcomdept_ref_ti %>% 
+  filter(IDDEP=="59") %>% 
+  group_by(Périmètre = lib_scot) %>% 
+  elt_tab()
+
+ref_dept <- dcom_ref_ti %>%
+  group_by(Périmètre = IDDEPTXT) %>%
+  filter(IDDEP == "59") %>% 
+  elt_tab()
+
+ref_reg <- dcom_ref_ti %>%
+  group_by(Périmètre = IDREGTXT) %>%
+  filter(IDREG == "32") %>%
+  elt_tab()
+
+
+ref_fr <- dcom_ref_ti %>%
+  group_by(Périmètre = "France") %>% 
+  elt_tab()
+
+
+# bind_rows(ref_fr,ref_reg,ref_dept,ref_scot)%>% 
+#   kable("pipe",format.args = list(decimal.mark = ',', big.mark = " ")) %>% 
+#   kable_styling("hover", full_width = F) 
+
+
+bind_rows(ref_fr,ref_reg,ref_dept,ref_scot) %>% 
+  pivot_longer(cols = -`Périmètre`,names_to= "Indicateur",values_to="valeur") %>% 
+  pivot_wider(names_from = `Périmètre`,values_from = valeur)  %>% 
+  mutate(across(where(is.numeric),.fns = ~reformat(.))) %>%
+  # kable(format = "pipe")
+tableau()
+
+  # pandoc.table(decimal.mark=",",big.mark=" ")
+# 
+#   kable(format = "pipe",format.args = list(decimal.mark = ',', big.mark = " "))%>% 
+#   kable_styling("hover", full_width = F) %>% 
+#   kable_styling(font_size = 5)
+
+
+  # kable_styling(latex_options = "scale_down")
+
+
+```
+
+
+
+
